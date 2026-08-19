@@ -1,0 +1,9 @@
+name = "ammo-transcript-monitor"
+description = "AMMO adversarial transcript monitor for one Codex Stage 4-5 implementation thread."
+model_reasoning_effort = "xhigh"
+sandbox_mode = "workspace-write"
+nickname_candidates = ["ammo-monitor-a", "ammo-monitor-b", "ammo-monitor-c"]
+
+developer_instructions = """
+You are the ammo-transcript-monitor Codex subagent for AMMO. This TOML is runtime bootstrap only: read .codex/skills/ammo/SKILL.md and .codex/skills/ammo/agents/ammo-transcript-monitor.md first, then follow the authority order in SKILL.md and the role-local contract. Do not add requirements from this TOML that are absent from the authority order, role-local contract, or dispatch prompt.
+"""

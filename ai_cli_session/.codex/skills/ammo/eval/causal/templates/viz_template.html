@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+     SPDX-License-Identifier: CC-BY-NC-4.0 -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Causal DAG Viewer</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@5/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dagre-d3@0.6.4/dist/dagre-d3.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; flex-direction: column; height: 100vh; background: #0d1117; color: #e6edf3; }
+  #controls { padding: 8px 16px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 16px; font-size: 13px; }
+  #controls label { color: #8b949e; }
+  #controls select, #controls input[type=range] { background: #21262d; border: 1px solid #30363d; color: #e6edf3; border-radius: 4px; padding: 3px 6px; }
+  #controls input[type=checkbox] { cursor: pointer; }
+  #main { display: flex; flex: 1; overflow: hidden; }
+  #graph-container { flex: 1; overflow: hidden; position: relative; }
+  svg#dag { width: 100%; height: 100%; }
+  .node rect { stroke-width: 2px; rx: 6; ry: 6; cursor: pointer; }
+  .node text { fill: #e6edf3; font-size: 12px; pointer-events: none; }
+  .edgePath path { stroke: #8b949e; stroke-width: 1.5px; fill: none; }
+  .edgeLabel { font-size: 10px; fill: #8b949e; }
+  .critical-path rect { stroke-width: 4px !important; }
+  #sidebar { width: 320px; background: #161b22; border-left: 1px solid #30363d; overflow-y: auto; display: none; padding: 16px; font-size: 13px; }
+  #sidebar.visible { display: block; }
+  #sidebar h2 { font-size: 15px; margin-bottom: 12px; color: #58a6ff; }
+  #sidebar h3 { font-size: 13px; margin: 12px 0 6px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+  #sidebar table { width: 100%; border-collapse: collapse; }
+  #sidebar td { padding: 4px 6px; border-bottom: 1px solid #21262d; }
+  #sidebar td:first-child { color: #8b949e; width: 50%; }
+  #sidebar .anomaly-tag { display: inline-block; background: #ff6b6b33; color: #ff6b6b; border: 1px solid #ff6b6b66; border-radius: 3px; padding: 1px 6px; margin: 2px; font-size: 11px; }
+  #sidebar .analysis-box { background: #21262d; border-radius: 4px; padding: 8px; margin-top: 4px; font-size: 12px; line-height: 1.5; color: #c9d1d9; }
+  #tooltip { position: fixed; background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 6px 10px; font-size: 12px; pointer-events: none; display: none; z-index: 100; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <label>Max Depth: <input type="range" id="depth-filter" min="1" max="10" value="10"></label>
+  <span id="depth-val" style="color:#58a6ff;min-width:20px">10</span>
+  <label><input type="checkbox" id="anomaly-only"> Anomalies only</label>
+  <span id="node-count" style="color:#8b949e;margin-left:auto"></span>
+</div>
+<div id="main">
+  <div id="graph-container"><svg id="dag"><g/></svg></div>
+  <div id="sidebar">
+    <h2 id="sb-title"></h2>
+    <div id="sb-role" style="color:#8b949e;margin-bottom:8px;font-size:12px"></div>
+    <h3>Metrics</h3>
+    <table id="sb-metrics"></table>
+    <div id="sb-anomaly-section" style="display:none">
+      <h3>Anomalies</h3>
+      <div id="sb-anomalies"></div>
+    </div>
+    <div id="sb-analysis-section" style="display:none">
+      <h3>Deep Analysis</h3>
+      <div id="sb-analysis"></div>
+    </div>
+  </div>
+</div>
+<div id="tooltip"></div>
+
+<script>
+window.__DAG_DATA__ = __DAG_JSON_PLACEHOLDER__;
+
+(function() {
+  var data = window.__DAG_DATA__;
+  var nodes = data.nodes || [];
+  var edges = data.edges || [];
+  var criticalPath = (data.summary && data.summary.critical_path) || [];
+  var criticalSet = new Set(criticalPath);
+
+  var COLOR_OK = "#4ecdc4";
+  var COLOR_ANOMALY = "#ffa657";
+  var COLOR_CORRUPTION = "#ff6b6b";
+
+  function nodeColor(node) {
+    var a = node.anomaly || [];
+    if (a.indexOf("DATA_CORRUPTION") !== -1) return COLOR_CORRUPTION;
+    if (a.length > 0) return COLOR_ANOMALY;
+    return COLOR_OK;
+  }
+
+  var depthFilter = 10;
+  var anomalyOnly = false;
+  var svg = d3.select("svg#dag");
+  var inner = svg.select("g");
+  var zoom = d3.zoom().on("zoom", function() { inner.attr("transform", d3.event.transform); });
+  svg.call(zoom);
+
+  function renderGraph() {
+    inner.selectAll("*").remove();
+    var g = new dagreD3.graphlib.Graph().setGraph({ rankdir: "LR", nodesep: 30, ranksep: 60, marginx: 20, marginy: 20 });
+
+    var visibleNodes = nodes.filter(function(n) {
+      if (anomalyOnly && (!n.anomaly || n.anomaly.length === 0)) return false;
+      return true;
+    });
+    var visibleIds = new Set(visibleNodes.map(function(n) { return n.id; }));
+
+    document.getElementById("node-count").textContent = visibleNodes.length + " nodes";
+
+    visibleNodes.forEach(function(node) {
+      var label = node.id.replace(/_/g, " ");
+      var cls = criticalSet.has(node.id) ? "critical-path" : "";
+      g.setNode(node.id, {
+        label: label,
+        class: cls,
+        style: "fill:" + nodeColor(node) + "33; stroke:" + nodeColor(node),
+        labelStyle: "fill:#e6edf3",
+        rx: 6, ry: 6,
+        paddingLeft: 12, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
+        _nodeData: node,
+      });
+    });
+
+    edges.forEach(function(edge) {
+      if (!visibleIds.has(edge.from) || !visibleIds.has(edge.to)) return;
+      var label = edge.artifact || edge.datum_type || edge.type || "";
+      g.setEdge(edge.from, edge.to, {
+        label: label.length > 20 ? label.slice(0, 18) + ".." : label,
+        style: "stroke:#8b949e;fill:none",
+        labelStyle: "fill:#8b949e;font-size:10px",
+        _edgeData: edge,
+      });
+    });
+
+    var render = new dagreD3.render();
+    render(inner, g);
+
+    inner.selectAll("g.node").on("click", function(id) {
+      var nd = g.node(id)._nodeData;
+      showSidebar(nd);
+    });
+
+    var tooltip = document.getElementById("tooltip");
+    inner.selectAll("g.edgePath").each(function(e) {
+      var ed = g.edge(e);
+      if (!ed) return;
+      d3.select(this)
+        .on("mouseover", function() {
+          var edata = ed._edgeData || {};
+          tooltip.innerHTML = "<b>" + (edata.type || "edge") + "</b>" + (edata.artifact ? ": " + edata.artifact : "") + (edata.datum_type ? " [" + edata.datum_type + "]" : "");
+          tooltip.style.display = "block";
+        })
+        .on("mousemove", function() {
+          tooltip.style.left = (d3.event.clientX + 12) + "px";
+          tooltip.style.top = (d3.event.clientY - 8) + "px";
+        })
+        .on("mouseout", function() { tooltip.style.display = "none"; });
+    });
+
+    var bbox = svg.node().getBoundingClientRect();
+    var gw = g.graph().width || 1;
+    var gh = g.graph().height || 1;
+    var scale = Math.min(bbox.width / (gw + 40), bbox.height / (gh + 40), 1.2);
+    svg.call(zoom.transform, d3.zoomIdentity.translate((bbox.width - gw * scale) / 2, (bbox.height - gh * scale) / 2).scale(scale));
+  }
+
+  function showSidebar(node) {
+    document.getElementById("sidebar").classList.add("visible");
+    document.getElementById("sb-title").textContent = node.id;
+    document.getElementById("sb-role").textContent = (node.agent_role || "") + (node.agent_name && node.agent_name !== "orchestrator" ? " (" + node.agent_name + ")" : "");
+
+    var mt = document.getElementById("sb-metrics");
+    mt.innerHTML = "";
+    var metrics = node.metrics || {};
+    Object.keys(metrics).forEach(function(k) {
+      var v = metrics[k];
+      var tr = document.createElement("tr");
+      var td1 = document.createElement("td"); td1.textContent = k;
+      var td2 = document.createElement("td");
+      td2.textContent = v === null ? "—" : (typeof v === "number" ? v.toFixed(3) : v);
+      tr.appendChild(td1); tr.appendChild(td2); mt.appendChild(tr);
+    });
+
+    var anomSec = document.getElementById("sb-anomaly-section");
+    var anomDiv = document.getElementById("sb-anomalies");
+    anomDiv.innerHTML = "";
+    if (node.anomaly && node.anomaly.length > 0) {
+      anomSec.style.display = "";
+      node.anomaly.forEach(function(a) {
+        var span = document.createElement("span");
+        span.className = "anomaly-tag"; span.textContent = a;
+        anomDiv.appendChild(span);
+      });
+    } else {
+      anomSec.style.display = "none";
+    }
+
+    var anaSec = document.getElementById("sb-analysis-section");
+    var anaDiv = document.getElementById("sb-analysis");
+    anaDiv.innerHTML = "";
+    if (node.deep_analysis) {
+      anaSec.style.display = "";
+      var da = node.deep_analysis;
+      var lines = [];
+      if (da.root_cause) lines.push("<b>Root Cause:</b> " + da.root_cause);
+      if (da.causal_chain && da.causal_chain.length) lines.push("<b>Chain:</b> " + da.causal_chain.join(" → "));
+      if (da.counterfactual) lines.push("<b>Counterfactual:</b> " + da.counterfactual);
+      if (da.actionable_fix) lines.push("<b>Fix:</b> " + da.actionable_fix);
+      if (da.confidence !== undefined) lines.push("<b>Confidence:</b> " + (da.confidence * 100).toFixed(0) + "%");
+      anaDiv.innerHTML = '<div class="analysis-box">' + lines.join("<br>") + "</div>";
+    } else {
+      anaSec.style.display = "none";
+    }
+  }
+
+  document.getElementById("depth-filter").addEventListener("input", function() {
+    depthFilter = +this.value;
+    document.getElementById("depth-val").textContent = depthFilter;
+    renderGraph();
+  });
+  document.getElementById("anomaly-only").addEventListener("change", function() {
+    anomalyOnly = this.checked;
+    renderGraph();
+  });
+
+  renderGraph();
+})();
+</script>
+</body>
+</html>

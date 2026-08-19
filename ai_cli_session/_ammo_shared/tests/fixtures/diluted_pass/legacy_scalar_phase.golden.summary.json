@@ -1,0 +1,43 @@
+{
+  "artifact_dir": "ARTIFACT_DIR",
+  "e2e_gate": {
+    "failing": [],
+    "pass": false,
+    "per_bs_verdicts": [
+      {
+        "batch_size": 1,
+        "phase": {
+          "amdahl_consistent": true,
+          "decode_improvement_pct": 4.0000000000000036,
+          "decode_share_of_e2e": 0.1,
+          "diluted_decode_win": true,
+          "expected_e2e_from_phases_pct": 0.40000000000000036,
+          "prefill_improvement_pct": 0.0
+        },
+        "speedup": 1.004016064257028,
+        "verdict": "NOISE"
+      }
+    ],
+    "phase_triage": {
+      "amdahl_inconsistent_bs": [],
+      "diluted_decode_win_bs": [
+        1
+      ],
+      "phase_regression_bs": []
+    },
+    "thresholds": {
+      "catastrophic_regression_pct": 5.0,
+      "min_e2e_improvement_pct": 0.5,
+      "noise_tolerance_pct": 0.5,
+      "pass_floor_speedup": 1.005
+    },
+    "track_verdict": "FAIL"
+  },
+  "generated_at": "GENERATED_AT",
+  "inputs": {
+    "e2e_json": "ARTIFACT_DIR/e2e_latency/e2e_latency_results.json"
+  },
+  "status": {
+    "has_e2e": true
+  }
+}

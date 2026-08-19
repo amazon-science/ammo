@@ -1,0 +1,392 @@
+{
+  "_comment": "Machine-readable AMMO V2 artifact-path manifest. Sole source of the PATH FACTS that references/artifact-layout.md states in prose and that both variants' layout warn hooks enforce. Consumers: .claude/hooks/ammo-artifact-layout-warn.sh and .codex/hooks/post_tool_use_guard.py both derive their allowlist from `slots[].path_template` + `placeholders`; neither restates a path. Judgment (disambiguation rules, prohibited-pattern rationale, resolution order) stays prose in artifact-layout.md. skills/ammo/tests/test_artifact_layout_manifest.py holds doc<->manifest parity.",
+  "version": 1,
+  "doc": "references/artifact-layout.md",
+  "placeholders": {
+    "{N}": "[0-9]+",
+    "{D}": "[0-9]+",
+    "{C}": "[0-9]+",
+    "{BS}": "[0-9]+",
+    "{op_id}": "[A-Za-z0-9_-]+",
+    "{champion_id}": "[A-Za-z0-9_-]+",
+    "{monitor_id}": "[A-Za-z0-9_-]+",
+    "{stage}": "[A-Za-z0-9_*-]+",
+    "{date}": "[0-9A-Za-z:_.-]+",
+    "{slot}": "[A-Za-z0-9_-]+",
+    "{timestamp}": "[0-9A-Za-z:_.-]+"
+  },
+  "_placeholders_comment": "Placeholder token -> regex fragment. A template segment holding no placeholder is matched literally. A trailing '/' makes the template a directory PREFIX (anything below it conforms); no trailing '/' makes it an exact file path. Consumers also accept every proper directory ancestor of a template, so a bare `rounds/3/sweeps` token is a directory reference, not drift.",
+  "open_dirs": [
+    "rounds/{N}/mining/",
+    "rounds/{N}/audits/"
+  ],
+  "_open_dirs_comment": "Directories whose whole subtree conforms because the child filenames are agent-chosen, not a fixed set: the researcher adds mining evidence files, and the auditor writes per-cycle and per-track verdict filenames. The slots inside them stay enumerated below for their writer/gate/kind facts. Every other directory keeps its exact child set, so a track-root `validation_results_DRAFT.md` still warns.",
+  "slots": {
+    "state_json": {
+      "path_template": "state.json",
+      "writer": "orchestrator",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Shape + enums owned by schemas/state.schema.json. Sub-agents never write it."
+    },
+    "state_lock": {
+      "path_template": "state.json.lock",
+      "writer": "ammo_state.py state_lock() + reconcile_track_state.py",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Empty flock file. Every writer of state.json serializes on it, so it sits next to state.json and is never deleted. Carries no campaign data."
+    },
+    "target_json": {
+      "path_template": "target.json",
+      "writer": "new_target.py + orchestrator (SHIP env promotion)",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative"
+    },
+    "report_md": {
+      "path_template": "REPORT.md",
+      "writer": ".claude/agents/ammo-report-writer",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Terminal deliverable, Stage 7b."
+    },
+    "report_assets": {
+      "path_template": "report_assets/",
+      "writer": ".claude/agents/ammo-report-writer",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "derived",
+      "notes": "5 required PNGs plus their gen_*.py generators."
+    },
+    "blockers": {
+      "path_template": "blockers/{stage}_{date}.md",
+      "writer": "orchestrator",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Cross-round, NOT round-scoped."
+    },
+    "constraints": {
+      "path_template": "rounds/{N}/constraints.md",
+      "writer": "ammo-researcher",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative"
+    },
+    "validation_gate_report": {
+      "path_template": "rounds/{N}/validation_gate_report.json",
+      "writer": "verify_validation_gates.py --json-output",
+      "gate": "cohort",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "One cohort-wide mechanical gate result per round."
+    },
+    "profiling_nsys": {
+      "path_template": "rounds/{N}/profiling/nsys/",
+      "writer": "run_vllm_bench_latency_sweep.py --nsys-profile",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Attribution traces. Holds baseline_bs{BS}.nsys-rep plus opt/{op_id}/, integration/ and post_ship/ subdirs. Traces NEVER land inside a sweep output dir."
+    },
+    "profiling_ncu": {
+      "path_template": "rounds/{N}/profiling/ncu/",
+      "writer": "ammo-researcher",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Targeted hardware counters (sanity.csv + sanity_results.md). Its latency column is NOT a baseline."
+    },
+    "profiling_probe": {
+      "path_template": "rounds/{N}/profiling/probe/",
+      "writer": "legacy campaigns only",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Read-compatibility only. Not scaffolded, not a Stage 2 ranking input."
+    },
+    "profiling_torch": {
+      "path_template": "rounds/{N}/profiling/torch_profile/",
+      "writer": "legacy campaigns only",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Read-compatibility only."
+    },
+    "sweep_baseline": {
+      "path_template": "rounds/{N}/sweeps/baseline/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot baseline",
+      "gate": "stage_1",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Clean Stage 1 E2E. Profiling flags forbidden. Holds json/golden_refs.json for Gate 5.1b."
+    },
+    "sweep_profiling": {
+      "path_template": "rounds/{N}/sweeps/profiling/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot profiling",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Latency here is contaminated. Never a timing authority."
+    },
+    "sweep_profiling_prefill": {
+      "path_template": "rounds/{N}/sweeps/profiling_prefill/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot profiling_prefill",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Contaminated latency AND shortened OSL, so any decode-shape claim needs a production-depth cross-check."
+    },
+    "sweep_opt": {
+      "path_template": "rounds/{N}/sweeps/opt/{op_id}/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot opt/{op_id}",
+      "gate": "5.3b",
+      "is_gate_slot": true,
+      "kind": "authoritative",
+      "notes": "Clean per-track E2E timing authority. One per track per round; superseded runs archived."
+    },
+    "sweep_opt_correctness": {
+      "path_template": "rounds/{N}/sweeps/opt_correctness/{op_id}/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot opt_correctness/{op_id}",
+      "gate": "5.1b",
+      "is_gate_slot": true,
+      "kind": "authoritative",
+      "notes": "Clean full-model correctness. Emits json/correctness_verdict.json."
+    },
+    "sweep_opt_profiling": {
+      "path_template": "rounds/{N}/sweeps/opt_profiling/{op_id}/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot opt_profiling/{op_id}",
+      "gate": "5.3a",
+      "is_gate_slot": true,
+      "kind": "authoritative",
+      "notes": "Activation evidence only; latency is contaminated and never a timing authority."
+    },
+    "sweep_integration": {
+      "path_template": "rounds/{N}/sweeps/integration/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot integration",
+      "gate": "stage_6",
+      "is_gate_slot": true,
+      "kind": "authoritative",
+      "notes": "Promoted baseline for round N+1 mining after a material SHIP, including when populated by the single-pass short-circuit."
+    },
+    "sweep_integration_profiling": {
+      "path_template": "rounds/{N}/sweeps/integration_profiling/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot integration_profiling",
+      "gate": "stage_6",
+      "is_gate_slot": true,
+      "kind": "authoritative",
+      "notes": "Combined activation proof only; latency is contaminated."
+    },
+    "sweep_golden_capture": {
+      "path_template": "rounds/{N}/sweeps/golden_capture/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot golden_capture",
+      "gate": "post_ship",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Emits json/golden_refs.json consumed by the next round's Gate 5.1b."
+    },
+    "sweep_post_ship_profiling": {
+      "path_template": "rounds/{N}/sweeps/post_ship_profiling/",
+      "writer": "run_vllm_bench_latency_sweep.py --slot post_ship_profiling",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Optional post-SHIP re-attribution capture; traces route to profiling/nsys/post_ship/. Contaminated latency, and T16 stays eliminated so it is never mandatory."
+    },
+    "mining_analysis": {
+      "path_template": "rounds/{N}/mining/bottleneck_analysis.md",
+      "writer": "ammo-researcher",
+      "gate": "stage_2",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Prose plus tables.md pasted verbatim. A hand-edited mined number is a BLOCKING audit finding."
+    },
+    "mining_config": {
+      "path_template": "rounds/{N}/mining/mine_config.json",
+      "writer": "ammo-researcher",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Agent JUDGMENT only: segmentation policy, family labels + symbol patterns, trace-to-BS mapping, physical ceilings, prefill_active."
+    },
+    "mining_mined_json": {
+      "path_template": "rounds/{N}/mining/mined.json",
+      "writer": "mine_trace.py",
+      "gate": "stage_2",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Schema mine_trace/1. Sole writer of every mined number."
+    },
+    "mining_tables": {
+      "path_template": "rounds/{N}/mining/tables.md",
+      "writer": "mine_trace.py",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "derived",
+      "notes": "The two mandated tables. Regenerated from mined.json; never hand-edited."
+    },
+    "debate_eligibility": {
+      "path_template": "rounds/{N}/debate/eligibility_verdicts.md",
+      "writer": "orchestrator (lead-owned)",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "CUT-4 four-gate verdict plus gated_revision. Write-once-then-append."
+    },
+    "debate_proposals": {
+      "path_template": "rounds/{N}/debate/proposals/{champion_id}_proposal.md",
+      "writer": "ammo-champion",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Phase 0. In debate sub-round 1 the proposal IS the argument-of-record."
+    },
+    "debate_rounds": {
+      "path_template": "rounds/{N}/debate/round_{D}/",
+      "writer": "ammo-champion",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "D counts DEBATE sub-rounds, not campaign rounds. Holds {op_id}_{argument|critique_{target}|rebuttal}.md."
+    },
+    "debate_micro_experiments": {
+      "path_template": "rounds/{N}/debate/micro_experiments/",
+      "writer": "ammo-champion",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Feasibility scripts plus logs."
+    },
+    "debate_summary": {
+      "path_template": "rounds/{N}/debate/summary.md",
+      "writer": "orchestrator",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "derived",
+      "notes": "Lead-authored human summary of the typed selected_candidates in state.json. Champions never write it; state.json wins any disagreement."
+    },
+    "track_validation_results": {
+      "path_template": "rounds/{N}/tracks/{op_id}/validation_results.md",
+      "writer": "generate_validation_report.py + .claude/agents/ammo-impl-champion",
+      "gate": "T9",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "The ONLY authoritative file at the track root. check_projection_accuracy.py appends its section here."
+    },
+    "track_evidence": {
+      "path_template": "rounds/{N}/tracks/{op_id}/evidence.json",
+      "writer": "create_evidence_template.py + .claude/agents/ammo-impl-champion",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Structured primary-evidence index; read by verify_validation_gates.py and reconcile_track_state.py."
+    },
+    "track_validation_summary": {
+      "path_template": "rounds/{N}/tracks/{op_id}/validation_summary.json",
+      "writer": "generate_validation_report.py",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "derived",
+      "notes": "Machine summary of validation_results.md."
+    },
+    "track_diff_patch": {
+      "path_template": "rounds/{N}/tracks/{op_id}/diff.patch",
+      "writer": ".claude/agents/ammo-impl-champion",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Refreshed from the merge base after each gate-relevant commit. Required for review, resume, integration and PR extraction."
+    },
+    "track_runtime_pkg_patch": {
+      "path_template": "rounds/{N}/tracks/{op_id}/runtime_pkg.patch",
+      "writer": ".claude/agents/ammo-impl-champion",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Written ONLY when a materialized runtime was edited, derived from the roots worktree setup recorded."
+    },
+    "track_validator_tests": {
+      "path_template": "rounds/{N}/tracks/{op_id}/validator_tests/",
+      "writer": ".claude/agents/ammo-impl-champion",
+      "gate": "5.1a+5.2",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "test_correctness.py, bench_gate_5_2.py, gate_5_1a_results.json, gate_5_2_results.json."
+    },
+    "track_monitor_audits": {
+      "path_template": "rounds/{N}/tracks/{op_id}/monitor_audits/",
+      "writer": "ammo-transcript-monitor",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Impl-stage only. Monitors write here, never to the campaign root. Debate champions have no monitors, so there is no debate/monitor_audits/."
+    },
+    "track_scratch": {
+      "path_template": "rounds/{N}/tracks/{op_id}/_scratch/",
+      "writer": ".claude/agents/ammo-impl-champion",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "All drafts, debug scripts and iteration logs. Drafts look like finals, so nothing here is ever cited as a verdict."
+    },
+    "audit_stage_1": {
+      "path_template": "rounds/{N}/audits/stage_1.md",
+      "writer": "ammo-auditor",
+      "gate": "T_AUDIT_S1",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Verdict for T_AUDIT_S1. The stage transition reads the matching audit.stage_1.passed_at stamp."
+    },
+    "audit_stage_2": {
+      "path_template": "rounds/{N}/audits/stage_2.md",
+      "writer": "ammo-auditor",
+      "gate": "T_AUDIT_S2",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Verdict for T_AUDIT_S2. The stage transition reads the matching audit.stage_2.passed_at stamp."
+    },
+    "audit_stage_45": {
+      "path_template": "rounds/{N}/audits/stage_45.md",
+      "writer": "ammo-auditor",
+      "gate": "T_AUDIT_S45",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Verdict for T_AUDIT_S45. The stage transition reads the matching audit.stage_45.passed_at stamp."
+    },
+    "audit_stage_67": {
+      "path_template": "rounds/{N}/audits/stage_67.md",
+      "writer": "ammo-auditor",
+      "gate": "T_AUDIT_S67",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Verdict for T_AUDIT_S67. The stage transition reads the matching audit.stage_67.passed_at stamp."
+    },
+    "audit_stage45_partial": {
+      "path_template": "rounds/{N}/audits/stage_45_partial_{op_id}.md",
+      "writer": "ammo-delegate dispatched by the orchestrator",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Optional early per-track evidence, NOT a verdict. Consumed by the real auditor at T_AUDIT_S45."
+    },
+    "audit_cycle": {
+      "path_template": "rounds/{N}/audits/stage_{stage}_cycle_{C}.md",
+      "writer": "ammo-auditor",
+      "gate": "T_AUDIT",
+      "is_gate_slot": false,
+      "kind": "authoritative",
+      "notes": "Re-audit after BLOCKED (C=2,3)."
+    },
+    "archive": {
+      "path_template": "rounds/{N}/_archive/{slot}_{timestamp}/",
+      "writer": "run_vllm_bench_latency_sweep.py",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Quarantined superseded runs. The ONLY place a timestamp may appear in a directory name."
+    }
+  }
+}

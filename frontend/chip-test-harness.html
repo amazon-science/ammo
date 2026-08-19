@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+     SPDX-License-Identifier: CC-BY-NC-4.0 -->
+<!--
+  LIGHTGRID chip visual test harness — Zone F (Task 24).
+
+  Renders each chip variant with pinned synthetic data at a fixed size so
+  Playwright can capture a pixel-stable screenshot per variant. Each chip
+  is mounted into a labeled slot whose data-test-id matches a fixture name:
+
+    data-test-id="chip-baseline-3bs"          (R1 mint, 3 BS)
+    data-test-id="chip-baseline-1bs"          (R1 mint, 1 BS fallback)
+    data-test-id="chip-reprofile-green"       (R2 re-profile, all PASS  → mint)
+    data-test-id="chip-reprofile-amber"       (R3 re-profile, mixed     → amber)
+    data-test-id="chip-reprofile-regressed"   (R3 re-profile, all regr  → red)
+    data-test-id="chip-track-shipped-allpass"
+    data-test-id="chip-track-mixed-verdicts"
+    data-test-id="chip-track-validated"       (validated / awaiting merge)
+    data-test-id="chip-integ-green"           (all PASS, with pips)
+    data-test-id="chip-integ-amber"           (mixed)
+    data-test-id="chip-integ-red"             (all regressed)
+    data-test-id="chip-integ-round1-default"  (round 1 — null verdict, no pips)
+    data-test-id="chip-mining-short"          (MINING Option A · short component name)
+    data-test-id="chip-mining-long"           (MINING · long op name ellipsis)
+    data-test-id="chip-debate-single-winner"  (DEBATE Option A · one winner)
+    data-test-id="chip-debate-multi-winners"  (DEBATE · multi-winner with +N pill)
+    data-test-id="chip-debate-active"         (DEBATE · active / cyan italic)
+
+  No tooltips — tooltip positioning depends on live mouse events which
+  we exercise in the unit suite, not here. Animations are paused so the
+  `cb2-row-anim` fade-in doesn't race the screenshot.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LIGHTGRID Chip Visual Harness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Share+Tech+Mono&family=Exo+2:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/lightgrid.css?v=2026-05-07-1">
+<style>
+  html, body { margin: 0; padding: 0; background: #05050a; color: #e8e8f0;
+    font-family: 'Exo 2', sans-serif; }
+  .harness { display: grid; grid-template-columns: repeat(3, 320px);
+    gap: 32px; padding: 40px; }
+  /* position:relative caps the absolute-positioned .cb2-hud chips inside
+     their own slot; without this they all render against the body origin
+     and overlap at (0,0), breaking the per-slot element screenshot. */
+  .slot { position: relative; width: 300px; height: 140px;
+    isolation: isolate; }
+  .slot-label { position: absolute; top: -18px; left: 0;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px;
+    color: rgba(232,232,240,0.45); letter-spacing: 1px; }
+  /* Freeze every animation so the screenshot is deterministic. */
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition: none !important;
+  }
+  /* The chip builders emit absolutely-positioned chips; inside each .slot
+     they sit at (0,0) relative to the slot. */
+  .slot .cb2-hud { left: 0 !important; top: 0 !important; }
+</style>
+</head>
+<body>
+<div class="harness" id="harness"></div>
+<script src="/static/js/circuit-board.js?v=2026-05-07-1"></script>
+<script>
+(() => {
+    const CB = window.CircuitBoard;
+    // Initialise the shared tooltip + CSS so per-chip hover handlers fire in
+    // the harness. Without this, _cb2Tip is null and mouseenter is a no-op.
+    if (typeof CB.__testInitTooltip === 'function') {
+        CB.__testInitTooltip(document.body);
+    }
+    function slot(id, label) {
+        const s = document.createElement('div');
+        s.className = 'slot';
+        s.dataset.testId = id;
+        const lbl = document.createElement('div');
+        lbl.className = 'slot-label';
+        lbl.textContent = label;
+        s.appendChild(lbl);
+        document.getElementById('harness').appendChild(s);
+        return s;
+    }
+
+    // ── BASELINE chip — 3 BS ─────────────────────────────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-baseline-3bs', 'BASELINE · 3 BS (R1)'),
+        0, 0, {
+            name: 'BASELINE',
+            designation: 'U1',
+            detail: 'Initial model profiling',
+            value: '7.66s',
+            latencyMap: {
+                "128": {"avg": 7.66, "p50": 7.55, "p10": 7.20, "p90": 8.00},
+                "256": {"avg": 8.20, "p50": 8.10, "p90": 8.48},
+                "512": {"avg": 9.10, "p50": 9.05, "p90": 9.35},
+            },
+            perBsVerdict: null,
+        }, true, 0, 1, 0, null, () => true,
+    );
+
+    // ── BASELINE chip — single BS ─────────────────────────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-baseline-1bs', 'BASELINE · 1 BS'),
+        0, 0, {
+            name: 'BASELINE',
+            designation: 'U1',
+            detail: 'Initial model profiling',
+            value: '7.66s',
+            latencyMap: { "128": {"avg": 7.66, "p50": 7.55} },
+            perBsVerdict: null,
+        }, true, 0, 1, 0, null, () => true,
+    );
+
+    // ── RE-PROFILE chip — all PASS → mint (R2 green) ──────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-reprofile-green', 'RE-PROFILE · GREEN (R2)'),
+        0, 0, {
+            name: 'RE-PROFILE',
+            designation: 'U4',
+            detail: 'Re-profile after integration',
+            value: '6.42s',
+            latencyMap: {
+                "128": {"avg": 6.42, "p50": 6.40},
+                "256": {"avg": 7.10, "p50": 7.02},
+                "512": {"avg": 8.05, "p50": 8.00},
+            },
+            perBsVerdict: {"128": "PASS", "256": "PASS", "512": "PASS"},
+        }, true, 0, 2, 0, null, () => true,
+    );
+
+    // ── RE-PROFILE chip — mixed → amber (R3) ──────────────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-reprofile-amber', 'RE-PROFILE · AMBER (R3)'),
+        0, 0, {
+            name: 'RE-PROFILE',
+            designation: 'U7',
+            detail: 'Re-profile after integration',
+            value: '6.58s',
+            latencyMap: {
+                "128": {"avg": 6.58, "p50": 6.50},
+                "256": {"avg": 7.80, "p50": 7.72},
+                "512": {"avg": 8.90, "p50": 8.85},
+            },
+            perBsVerdict: {"128": "PASS", "256": "NOISE", "512": "REGRESSED"},
+        }, true, 0, 3, 0, null, () => true,
+    );
+
+    // ── RE-PROFILE chip — all regressed → red (R3) ───────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-reprofile-regressed', 'RE-PROFILE · RED (R3)'),
+        0, 0, {
+            name: 'RE-PROFILE',
+            designation: 'U7',
+            detail: 'Re-profile after integration',
+            value: '7.00s',
+            latencyMap: {
+                "128": {"avg": 7.00, "p50": 6.90},
+                "256": {"avg": 8.50, "p50": 8.40},
+            },
+            perBsVerdict: {"128": "REGRESSED", "256": "REGRESSED"},
+        }, true, 0, 3, 0, null, () => true,
+    );
+
+    // ── TRACK chip — shipped, all PASS ────────────────────────────────────
+    CB.__testMakeTrackChip(
+        slot('chip-track-shipped-allpass', 'TRACK · SHIPPED · PASS'),
+        0, 0, {
+            name: 'attn_fp8_block',
+            status: 'shipped',
+            kernelSpeedup: 3.42,
+            e2eSpeedup: 1.18,
+            lossy: false,
+            perBsVerdict: {"128": "PASS", "256": "PASS", "512": "PASS"},
+        }, 0, 2, null, true,
+    );
+
+    // ── TRACK chip — mixed verdicts ───────────────────────────────────────
+    CB.__testMakeTrackChip(
+        slot('chip-track-mixed-verdicts', 'TRACK · MIXED'),
+        0, 0, {
+            name: 'moe_dispatch',
+            status: 'shipped',
+            kernelSpeedup: 2.10,
+            e2eSpeedup: 1.05,
+            lossy: true,
+            perBsVerdict: {"128": "PASS", "256": "NOISE", "512": "REGRESSED"},
+        }, 0, 2, null, true,
+    );
+
+    // ── TRACK chip — validated (awaiting merge) ───────────────────────────
+    // Distinct from shipped: mint PASS hero + "PASS — AWAITING MERGE" status
+    // line. Pips still render when per_bs_verdict is present.
+    CB.__testMakeTrackChip(
+        slot('chip-track-validated', 'TRACK · VALIDATED'),
+        0, 0, {
+            name: 'gemm_fp8_split',
+            status: 'validated',
+            kernelSpeedup: 1.92,
+            e2eSpeedup: 1.11,
+            lossy: false,
+            perBsVerdict: {"128": "PASS", "256": "PASS"},
+        }, 0, 2, null, true,
+    );
+
+    // ── INTEGRATION chip — green (all PASS) ──────────────────────────────
+    CB.__testMakeIntegChip(
+        slot('chip-integ-green', 'INTEG · GREEN'),
+        0, 0, {
+            status: 'completed',
+            thisRoundSpeedup: 1.08,
+            cumulativeSpeedup: 1.35,
+            perBsVerdict: {"128": "PASS", "256": "PASS", "512": "PASS"},
+        }, 0, 2, null, true, () => true,
+    );
+
+    // ── INTEGRATION chip — amber (mixed) ─────────────────────────────────
+    CB.__testMakeIntegChip(
+        slot('chip-integ-amber', 'INTEG · AMBER'),
+        0, 0, {
+            status: 'completed',
+            thisRoundSpeedup: 1.02,
+            cumulativeSpeedup: 1.28,
+            perBsVerdict: {"128": "PASS", "256": "REGRESSED"},
+        }, 0, 2, null, true, () => true,
+    );
+
+    // ── INTEGRATION chip — red (all regressed) ───────────────────────────
+    CB.__testMakeIntegChip(
+        slot('chip-integ-red', 'INTEG · RED'),
+        0, 0, {
+            status: 'completed',
+            thisRoundSpeedup: 0.92,
+            cumulativeSpeedup: 1.18,
+            perBsVerdict: {"128": "REGRESSED", "256": "CATASTROPHIC"},
+        }, 0, 2, null, true, () => true,
+    );
+
+    // ── INTEGRATION chip — round 1 default (no prev round, no verdicts) ──
+    // Distinct from the green-with-pips variant: perBsVerdict is null so
+    // the NONE aggregate → mint default chip with NO pips. Hero = 1.00
+    // (first round has no speedup to measure against). cum = 1.00.
+    CB.__testMakeIntegChip(
+        slot('chip-integ-round1-default', 'INTEG · R1 DEFAULT'),
+        0, 0, {
+            status: 'completed',
+            thisRoundSpeedup: 1.00,
+            cumulativeSpeedup: 1.00,
+            perBsVerdict: null,
+        }, 0, 1, null, true, () => true,
+    );
+
+    // ── MINING chip — short component (R1) ────────────────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-mining-short', 'MINING · SHORT COMPONENT (R1)'),
+        0, 0, {
+            name: 'MINING',
+            designation: 'U2',
+            detail: 'attn_fp8_block bottleneck',
+            miningData: {
+                component: 'attn_fp8_block',
+                pct: 89,
+                amdahlCeiling: 1.8,
+                decodeFrac: 0.93,
+                componentBreakdown: [
+                    { name: 'attn_fp8_block', pct: 89.2 },
+                    { name: 'mlp_gate_up',    pct: 4.3 },
+                    { name: 'rmsnorm_fused',  pct: 2.8 },
+                    { name: 'rope_apply',     pct: 1.9 },
+                    { name: 'kv_cache_copy',  pct: 0.9 },
+                ],
+                sourcePath: 'bottleneck_analysis.json',
+            },
+        }, true, 0, 1, 1, null, () => true,
+    );
+
+    // ── MINING chip — long component name (R2) ────────────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-mining-long', 'MINING · LONG COMPONENT (R2)'),
+        0, 0, {
+            name: 'MINING',
+            designation: 'U5',
+            detail: 'gemm_silu_prologue_v2 bottleneck',
+            miningData: {
+                component: 'gemm_silu_prologue_v2',
+                pct: 72,
+                amdahlCeiling: 2.4,
+                decodeFrac: 0.88,
+                componentBreakdown: [
+                    { name: 'gemm_silu_prologue_v2', pct: 72.0 },
+                    { name: 'attn_decode_tile',      pct: 14.2 },
+                    { name: 'moe_dispatch',          pct: 7.5 },
+                    { name: 'rmsnorm_fused',         pct: 3.9 },
+                    { name: 'kv_cache_copy',         pct: 2.4 },
+                ],
+                sourcePath: 'bottleneck_analysis.json',
+            },
+        }, true, 0, 2, 1, null, () => true,
+    );
+
+    // ── DEBATE chip — single winner, quiet state ──────────────────────────
+    CB.__testMakeStageChip(
+        slot('chip-debate-single-winner', 'DEBATE · SINGLE WINNER (R2)'),
+        0, 0, {
+            name: 'DEBATE',
+            designation: 'U6',
+            detail: 'Strategy selection',
+            debateData: {
+                championsCount: 3,
+                summaryRoundsCompleted: 2,
+                rationalesCount: 9,
+                winners: ['gemm_fp8_split'],
+                candidates: [
+                    { opId: 'gemm_fp8_split',   trackAssignment: 'quant',      feasibility: 0.92,
+                      evidenceTier: 'tier_1', expectedE2ePct: 18.4, weightedTotal: 0.87, isWinner: true },
+                    { opId: 'rope_reshape_v2',  trackAssignment: 'lossless',  feasibility: 0.70,
+                      evidenceTier: 'tier_2', expectedE2ePct: 6.8,  weightedTotal: 0.64, isWinner: false },
+                    { opId: 'kv_cache_int4',    trackAssignment: 'quant',     feasibility: 0.55,
+                      evidenceTier: 'tier_3', expectedE2ePct: 3.1,  weightedTotal: 0.41, isWinner: false },
+                ],
+            },
+            debateShippedOps: ['gemm_fp8_split'],
+        }, true, 0, 2, 2, null, () => true,
+    );
+
+    // ── DEBATE chip — multi-winners with +N more pill (R3) ───────────────
+    CB.__testMakeStageChip(
+        slot('chip-debate-multi-winners', 'DEBATE · 3 WINNERS / 5 CHAMPIONS (R3)'),
+        0, 0, {
+            name: 'DEBATE',
+            designation: 'U9',
+            detail: 'Strategy selection',
+            debateData: {
+                championsCount: 5,
+                summaryRoundsCompleted: 3,
+                rationalesCount: 15,
+                winners: ['gemm_fp8_split', 'silu_fuse_prologue', 'rope_reshape_v2'],
+                candidates: [
+                    { opId: 'gemm_fp8_split',     trackAssignment: 'quant',     feasibility: 0.92,
+                      evidenceTier: 'tier_1', expectedE2ePct: 18.4, weightedTotal: 0.87, isWinner: true },
+                    { opId: 'silu_fuse_prologue', trackAssignment: 'lossless',  feasibility: 0.83,
+                      evidenceTier: 'tier_1', expectedE2ePct: 12.1, weightedTotal: 0.79, isWinner: true },
+                    { opId: 'rope_reshape_v2',    trackAssignment: 'lossless',  feasibility: 0.70,
+                      evidenceTier: 'tier_2', expectedE2ePct: 6.8,  weightedTotal: 0.64, isWinner: true },
+                    { opId: 'attn_paged_sparse',  trackAssignment: 'structural', feasibility: 0.58,
+                      evidenceTier: 'tier_3', expectedE2ePct: 9.2,  weightedTotal: 0.52, isWinner: false },
+                    { opId: 'kv_cache_int4',      trackAssignment: 'quant',     feasibility: 0.55,
+                      evidenceTier: 'tier_2', expectedE2ePct: 3.1,  weightedTotal: 0.41, isWinner: false },
+                ],
+            },
+            debateShippedOps: ['gemm_fp8_split', 'silu_fuse_prologue', 'rope_reshape_v2'],
+        }, true, 0, 3, 2, null, () => true,
+    );
+
+    // ── DEBATE chip — active / in-flight (no winners yet) ────────────────
+    CB.__testMakeStageChip(
+        slot('chip-debate-active', 'DEBATE · ACTIVE (no winner yet)'),
+        0, 0, {
+            name: 'DEBATE',
+            designation: 'U12',
+            detail: 'Champions debating...',
+            active: true,
+            debateData: {
+                championsCount: 4,
+                summaryRoundsCompleted: 1,
+                rationalesCount: 4,
+                winners: [],
+                candidates: [],
+            },
+            debateActive: true,
+            debateShippedOps: [],
+        }, true, 0, 4, 2, null, () => true,
+    );
+
+    // Signal ready so Playwright can wait on window.__chipsReady.
+    window.__chipsReady = true;
+})();
+</script>
+</body>
+</html>

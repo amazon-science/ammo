@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+     SPDX-License-Identifier: CC-BY-NC-4.0 -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMMO Eval Dashboard</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface2: #0f3460;
+    --accent: #e94560;
+    --text: #eee;
+    --text-muted: #aaa;
+    --green: #4caf50;
+    --red: #e94560;
+    --yellow: #ffc107;
+    --blue: #2196f3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'SF Mono', 'Fira Code', monospace; background: var(--bg); color: var(--text); }
+  header { background: var(--surface); padding: 16px 24px; border-bottom: 2px solid var(--accent); display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 18px; }
+  header .meta { font-size: 12px; color: var(--text-muted); }
+  .tabs { display: flex; background: var(--surface); border-bottom: 1px solid #333; }
+  .tab { padding: 10px 20px; cursor: pointer; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .content { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  th { background: var(--surface2); padding: 8px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #444; }
+  td { padding: 8px 12px; border-bottom: 1px solid #222; }
+  tr:hover td { background: rgba(233,69,96,0.05); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(76,175,80,0.2); color: var(--green); }
+  .badge-red { background: rgba(233,69,96,0.2); color: var(--red); }
+  .badge-yellow { background: rgba(255,193,7,0.2); color: var(--yellow); }
+  .badge-blue { background: rgba(33,150,243,0.2); color: var(--blue); }
+  .delta-pos { color: var(--green); }
+  .delta-neg { color: var(--red); }
+  .delta-zero { color: var(--text-muted); }
+  .score-bar { display: inline-block; height: 8px; border-radius: 4px; background: var(--surface2); width: 80px; position: relative; vertical-align: middle; }
+  .score-bar-fill { height: 100%; border-radius: 4px; }
+  .chart-container { background: var(--surface); border-radius: 8px; padding: 20px; margin: 16px 0; }
+  .chart-placeholder { text-align: center; padding: 40px; color: var(--text-muted); }
+  h2 { font-size: 16px; margin: 20px 0 12px; color: var(--accent); }
+  h3 { font-size: 14px; margin: 16px 0 8px; }
+  .detail-toggle { cursor: pointer; color: var(--blue); font-size: 12px; }
+  .detail-toggle:hover { text-decoration: underline; }
+  .detail-content { display: none; margin: 8px 0 16px 16px; padding: 12px; background: var(--surface); border-radius: 4px; font-size: 12px; }
+  .detail-content.open { display: block; }
+  .stat { display: inline-block; margin-right: 16px; }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: var(--text-muted); }
+  .empty-state { text-align: center; padding: 60px; color: var(--text-muted); }
+  .target-filter { margin: 12px 0; }
+  .target-filter select { background: var(--surface); color: var(--text); border: 1px solid #444; padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 12px; }
+  canvas { max-width: 100%; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AMMO Eval Dashboard</h1>
+  <div class="meta" id="headerMeta"></div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="trend">Trend</div>
+  <div class="tab" data-tab="leaderboard">Leaderboard</div>
+  <div class="tab" data-tab="changes">Change Correlation</div>
+  <div class="tab" data-tab="detail">Run Detail</div>
+</div>
+
+<div class="content">
+  <!-- Trend View -->
+  <div class="panel active" id="panel-trend">
+    <h2>Performance Trend</h2>
+    <div class="target-filter">
+      <label>Target: </label>
+      <select id="trendTargetSelect"></select>
+    </div>
+    <div class="chart-container" id="trendChartContainer">
+      <canvas id="trendChart"></canvas>
+      <noscript><div class="chart-placeholder">Enable JavaScript for charts</div></noscript>
+    </div>
+    <div id="trendTable"></div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="panel" id="panel-leaderboard">
+    <h2>Per-Target Leaderboard</h2>
+    <div id="leaderboardContent"></div>
+  </div>
+
+  <!-- Change Correlation -->
+  <div class="panel" id="panel-changes">
+    <h2>Change Correlation</h2>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Shows how each skill revision changed the metrics vs the previous version.</p>
+    <div id="changesContent"></div>
+  </div>
+
+  <!-- Run Detail -->
+  <div class="panel" id="panel-detail">
+    <h2>Run Details</h2>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<script>
+/*__EMBEDDED_DATA__*/
+
+// ---- Tab Navigation ----
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ---- Helpers ----
+const D = typeof EMBEDDED_DATA !== 'undefined' ? EMBEDDED_DATA : {versions:[], reference_targets:[], leaderboard:{}};
+const versions = D.versions || [];
+const targets = D.reference_targets || [];
+
+function fmt(v, dec=2) { return v != null ? Number(v).toFixed(dec) : 'N/A'; }
+function fmtPct(v) { return v != null ? (v*100).toFixed(1)+'%' : 'N/A'; }
+function deltaClass(v) { return v > 0.001 ? 'delta-pos' : v < -0.001 ? 'delta-neg' : 'delta-zero'; }
+function deltaStr(v, dec=2) { if (v == null) return '-'; const s = v > 0 ? '+' : ''; return s + v.toFixed(dec); }
+function scoreColor(s) { return s >= 7 ? 'var(--green)' : s >= 5 ? 'var(--yellow)' : 'var(--red)'; }
+function scoreBar(s) {
+  if (s == null) return '';
+  const pct = Math.min(100, s * 10);
+  return `<span class="score-bar"><span class="score-bar-fill" style="width:${pct}%;background:${scoreColor(s)}"></span></span> ${fmt(s,1)}`;
+}
+
+// ---- Header ----
+document.getElementById('headerMeta').textContent =
+  `${versions.length} version(s) | ${targets.length} target(s) | Updated: ${D.last_updated || 'unknown'}`;
+
+// ---- Trend View ----
+const trendSelect = document.getElementById('trendTargetSelect');
+targets.forEach(t => {
+  const opt = document.createElement('option');
+  opt.value = t.slug;
+  opt.textContent = t.slug + (t.model_type ? ` (${t.model_type})` : '');
+  trendSelect.appendChild(opt);
+});
+
+function renderTrend(targetSlug) {
+  const rows = versions.map(v => {
+    const s = (v.summary || {})[targetSlug] || {};
+    return {
+      id: v.version_id,
+      desc: v.description || '',
+      score: (s.overall_score||{}).mean,
+      scoreStd: (s.overall_score||{}).stddev,
+      speedup: (s.e2e_speedup||{}).mean,
+      speedupStd: (s.e2e_speedup||{}).stddev,
+      shipped: (s.shipped_count||{}).mean,
+    };
+  }).filter(r => r.score != null || r.speedup != null);
+
+  // Table
+  let html = '<table><tr><th>#</th><th>Version</th><th>Description</th><th>Score</th><th>E2E Speedup</th><th>Shipped</th></tr>';
+  rows.forEach((r, i) => {
+    html += `<tr>
+      <td>${i+1}</td>
+      <td style="font-size:11px">${r.id}</td>
+      <td>${r.desc}</td>
+      <td>${scoreBar(r.score)}${r.scoreStd ? ' <span style="color:var(--text-muted);font-size:11px">+/-'+fmt(r.scoreStd,2)+'</span>' : ''}</td>
+      <td>${r.speedup ? fmt(r.speedup,3)+'x' : 'N/A'}${r.speedupStd ? ' <span style="color:var(--text-muted);font-size:11px">+/-'+fmt(r.speedupStd,3)+'</span>' : ''}</td>
+      <td>${r.shipped != null ? fmt(r.shipped,1) : 'N/A'}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  document.getElementById('trendTable').innerHTML = html;
+
+  // Chart (if Chart.js loaded)
+  renderTrendChart(rows);
+}
+
+function renderTrendChart(rows) {
+  const canvas = document.getElementById('trendChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  if (window._trendChart) window._trendChart.destroy();
+  const ctx = canvas.getContext('2d');
+  window._trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: rows.map((r,i) => '#'+(i+1)),
+      datasets: [{
+        label: 'Overall Score',
+        data: rows.map(r => r.score),
+        borderColor: '#e94560',
+        backgroundColor: 'rgba(233,69,96,0.1)',
+        yAxisID: 'y',
+        tension: 0.3,
+      },{
+        label: 'E2E Speedup',
+        data: rows.map(r => r.speedup),
+        borderColor: '#4caf50',
+        backgroundColor: 'rgba(76,175,80,0.1)',
+        yAxisID: 'y1',
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { tooltip: {
+        callbacks: { title: (items) => rows[items[0].dataIndex]?.desc || '' }
+      }},
+      scales: {
+        y: { type:'linear', display:true, position:'left', title:{display:true,text:'Score (0-10)'}, min:0, max:10 },
+        y1: { type:'linear', display:true, position:'right', title:{display:true,text:'Speedup (x)'}, min:1.0, grid:{drawOnChartArea:false} },
+      }
+    }
+  });
+}
+
+trendSelect.addEventListener('change', () => renderTrend(trendSelect.value));
+if (targets.length > 0) renderTrend(targets[0].slug);
+
+// ---- Leaderboard ----
+function renderLeaderboard() {
+  let html = '';
+  targets.forEach(t => {
+    const slug = t.slug;
+    html += `<h3>${slug} <span class="badge badge-blue">${t.model_type||''}</span></h3>`;
+    const rows = versions.map(v => {
+      const s = (v.summary||{})[slug]||{};
+      return {
+        id: v.version_id, desc: v.description||'',
+        score: (s.overall_score||{}).mean, scoreStd: (s.overall_score||{}).stddev,
+        speedup: (s.e2e_speedup||{}).mean, speedupStd: (s.e2e_speedup||{}).stddev,
+        shipped: (s.shipped_count||{}).mean,
+      };
+    }).filter(r => r.speedup != null).sort((a,b) => (b.speedup||0) - (a.speedup||0));
+
+    if (rows.length === 0) { html += '<p style="color:var(--text-muted)">No data</p>'; return; }
+
+    html += '<table><tr><th>Rank</th><th>Version</th><th>Description</th><th>Score</th><th>E2E Speedup</th><th>Shipped</th></tr>';
+    rows.forEach((r, i) => {
+      const isBest = i === 0;
+      html += `<tr${isBest ? ' style="background:rgba(76,175,80,0.08)"' : ''}>
+        <td>${isBest ? '<span class="badge badge-green">1st</span>' : i+1}</td>
+        <td style="font-size:11px">${r.id}</td><td>${r.desc}</td>
+        <td>${scoreBar(r.score)}</td>
+        <td><strong>${fmt(r.speedup,3)}x</strong>${r.speedupStd ? ' +/-'+fmt(r.speedupStd,3) : ''}</td>
+        <td>${fmt(r.shipped,1)}</td>
+      </tr>`;
+    });
+    html += '</table>';
+  });
+  document.getElementById('leaderboardContent').innerHTML = html || '<div class="empty-state">No data yet</div>';
+}
+renderLeaderboard();
+
+// ---- Change Correlation ----
+function renderChanges() {
+  let html = '';
+  targets.forEach(t => {
+    const slug = t.slug;
+    html += `<h3>${slug}</h3>`;
+    html += '<table><tr><th>Version</th><th>Description</th><th>Score Delta</th><th>Speedup Delta</th></tr>';
+    versions.forEach(v => {
+      const d = (v.deltas||{})[slug]||{};
+      html += `<tr>
+        <td style="font-size:11px">${v.version_id}</td><td>${v.description||''}</td>
+        <td class="${deltaClass(d.delta_score)}">${deltaStr(d.delta_score,2)}</td>
+        <td class="${deltaClass(d.delta_speedup)}">${deltaStr(d.delta_speedup,3)}x</td>
+      </tr>`;
+    });
+    html += '</table>';
+  });
+  document.getElementById('changesContent').innerHTML = html || '<div class="empty-state">Need 2+ versions for deltas</div>';
+}
+renderChanges();
+
+// ---- Run Detail ----
+const DONUT_COLORS = ['#e94560','#4caf50','#ffc107','#2196f3','#aaa'];
+function renderDetail() {
+  let html = '';
+  const donutQueue = [];
+  versions.slice().reverse().forEach(v => {
+    html += `<div style="margin-bottom:24px">`;
+    html += `<h3>${v.version_id}</h3><p style="font-size:12px;color:var(--text-muted)">${v.description||''} | ${v.created_at||''}</p>`;
+    const rd = v.run_details || {};
+    Object.entries(rd).forEach(([target, runs]) => {
+      html += `<h3 style="font-size:13px;margin-top:12px">${target}</h3>`;
+      runs.forEach(run => {
+        const sc = run.scorecard;
+        const uid = `${v.version_id}_${target}_${run.run_name}`.replace(/[^a-zA-Z0-9]/g,'_');
+        html += `<span class="detail-toggle" onclick="document.getElementById('${uid}').classList.toggle('open')">${run.run_name} — Score: ${fmt(sc.overall_score,1)}/10</span>`;
+        html += `<div class="detail-content" id="${uid}">`;
+        html += `<table><tr><th>Dimension</th><th>Score</th><th>Weight</th><th>Contribution</th></tr>`;
+        Object.entries(sc.dimensions||{}).forEach(([dim, data]) => {
+          html += `<tr><td>${dim.replace(/_/g,' ')}</td><td>${data.score != null ? fmt(data.score,1) : 'N/A'}</td><td>${fmtPct(data.weight)}</td><td>${fmt(data.weighted_contribution,2)}</td></tr>`;
+        });
+        html += '</table>';
+        // Dimension donut chart canvas
+        const donutId = uid + '_donut';
+        html += `<canvas id="${donutId}" width="200" height="200" style="max-width:200px;max-height:200px;margin:8px 0"></canvas>`;
+        donutQueue.push({ canvasId: donutId, dimensions: sc.dimensions || {} });
+        // Raw metrics
+        const rm = sc.raw_metrics || {};
+        html += `<p style="margin-top:8px;font-size:11px">Speedup: ${fmt(rm.cumulative_speedup_vs_round1,3)}x | Shipped: ${rm.shipped_optimizations||0} | Rounds: ${rm.total_rounds||'?'} | Status: ${rm.campaign_status||'?'}</p>`;
+        html += '</div>';
+      });
+    });
+    html += '</div>';
+  });
+  document.getElementById('detailContent').innerHTML = html || '<div class="empty-state">No runs archived yet</div>';
+  // Render donut charts after DOM update (graceful degradation if Chart.js not loaded)
+  if (typeof Chart !== 'undefined') {
+    donutQueue.forEach(item => {
+      const canvas = document.getElementById(item.canvasId);
+      if (!canvas) return;
+      const dims = Object.entries(item.dimensions);
+      if (dims.length === 0) return;
+      const labels = dims.map(([d]) => d.replace(/_/g, ' '));
+      const data = dims.map(([, d]) => d.weighted_contribution || 0);
+      const colors = dims.map((_, i) => DONUT_COLORS[i % DONUT_COLORS.length]);
+      new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+        options: {
+          responsive: false,
+          plugins: {
+            legend: { display: true, position: 'right', labels: { color: '#eee', font: { size: 10 } } },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmt(ctx.raw,2)} (score ${fmt(dims[ctx.dataIndex][1].score,1)})` } }
+          }
+        }
+      });
+    });
+  }
+}
+renderDetail();
+</script>
+
+<!-- Optional: Chart.js CDN for trend charts (degrades gracefully if unavailable) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer
+  onload="if(targets.length>0)renderTrend(trendSelect.value);renderDetail()"></script>
+
+</body>
+</html>

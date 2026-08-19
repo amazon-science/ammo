@@ -1,0 +1,6 @@
+interface:
+  display_name: "AMMO"
+  short_description: "Strict stage-gated vLLM/NVIDIA GPU optimization"
+  default_prompt: "Use $ammo to optimize and validate a real vLLM inference path for model_id=<model>, hardware=<gpu>, dtype=<dtype>, tp=<tp>, and optional ep=<ep>."
+policy:
+  allow_implicit_invocation: true

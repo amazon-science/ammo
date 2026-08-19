@@ -1,0 +1,71 @@
+allow_managed_hooks_only = true
+
+[features]
+hooks = true
+# Codex documents lifecycle interception for the simple shell tool; unified
+# exec interception remains incomplete. AMMO relies on complete Bash guard
+# coverage, so the managed policy pins the interceptable path.
+shell_tool = true
+unified_exec = false
+
+[hooks]
+managed_dir = "/opt/codex-managed-hooks"
+
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "/workspace/vllm/.venv/bin/python /opt/codex-managed-hooks/hooks/session_start.py"
+
+[[hooks.PreCompact]]
+matcher = "manual|auto"
+[[hooks.PreCompact.hooks]]
+type = "command"
+command = "/workspace/vllm/.venv/bin/python /opt/codex-managed-hooks/hooks/pre_compact.py"
+timeout = 30
+statusMessage = "Saving AMMO compaction checkpoint"
+
+[[hooks.PreToolUse]]
+# Codex currently routes only shell, apply_patch/Edit/Write aliases, and MCP
+# tools through PreToolUse. Native multi-agent V2 spawn policy is handled by
+# the guaranteed SubagentStart lifecycle plus the deterministic monitor ledger.
+matcher = "Bash|apply_patch|Edit|Write|mcp__.*"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "/workspace/vllm/.venv/bin/python /opt/codex-managed-hooks/hooks/pre_tool_use_guard.py"
+statusMessage = "Checking AMMO command policy"
+
+[[hooks.PostToolUse]]
+# `spawn_agent` mirrors .codex/hooks.json. This managed file is the enforced
+# one (allow_managed_hooks_only = true), so a token present only in hooks.json
+# is not registered in production. Codex normally routes native V2 spawns to
+# SubagentStart instead, which makes the token inert on such releases; when a
+# release DOES route the tool call, the monitor-ledger write happens. Both
+# paths are safe because record_monitor_pair updates the existing record
+# instead of appending a duplicate.
+# tests/unit/test_codex_hook_registration_parity.py pins the two files together.
+matcher = "Bash|apply_patch|Edit|Write|mcp__.*|spawn_agent"
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "/workspace/vllm/.venv/bin/python /opt/codex-managed-hooks/hooks/post_tool_use_guard.py"
+timeout = 7200
+statusMessage = "Reviewing AMMO command result"
+
+[[hooks.SubagentStart]]
+[[hooks.SubagentStart.hooks]]
+type = "command"
+command = "/workspace/vllm/.venv/bin/python /opt/codex-managed-hooks/hooks/post_tool_use_guard.py"
+statusMessage = "Registering AMMO subagent role"
+
+[[hooks.SubagentStop]]
+[[hooks.SubagentStop.hooks]]
+type = "command"
+command = "/workspace/vllm/.venv/bin/python /opt/codex-managed-hooks/hooks/post_tool_use_guard.py"
+statusMessage = "Checking AMMO subagent completion"
+
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "/workspace/vllm/.venv/bin/python /opt/codex-managed-hooks/hooks/stop_gate_guard.py"
+timeout = 7200
+statusMessage = "Checking AMMO gate completion"

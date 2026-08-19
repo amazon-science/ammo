@@ -1,0 +1,10 @@
+{
+  "skipDangerousModePermissionPrompt": true,
+  "permissions": {
+    "additionalDirectories": [
+      "/tmp",
+      "/workspace/vllm",
+      "/data/sessions"
+    ]
+  }
+}

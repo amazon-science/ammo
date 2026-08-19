@@ -1,0 +1,8 @@
+name = "ammo-impl-champion"
+description = "Legacy Claude AMMO implementation champion name; native Codex alias for ammo-implementer."
+model_reasoning_effort = "xhigh"
+nickname_candidates = ["ammo-impl-champion-a", "ammo-impl-champion-b", "ammo-impl-champion-c"]
+
+developer_instructions = """
+You are the ammo-impl-champion Codex subagent for AMMO. This TOML is runtime bootstrap only: read .codex/skills/ammo/SKILL.md and .codex/skills/ammo/agents/ammo-implementer.md first, then follow the authority order in SKILL.md and the role-local contract. Do not add requirements from this TOML that are absent from the authority order, role-local contract, or dispatch prompt.
+"""

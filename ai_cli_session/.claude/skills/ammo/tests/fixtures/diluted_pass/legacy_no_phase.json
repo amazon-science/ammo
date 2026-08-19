@@ -1,0 +1,16 @@
+{
+  "model_id": "test/model",
+  "tp": 1,
+  "max_model_len": 4096,
+  "workload": {"input_len": 1024, "output_len": 128, "num_iters": 10},
+  "results": [
+    {
+      "batch_size": 1,
+      "speedup": 1.05,
+      "improvement_pct": 4.761904761904759,
+      "baseline": {"avg_s": 1.0},
+      "opt": {"avg_s": 0.9523809523809523}
+    }
+  ],
+  "bench": {"baseline_label": "baseline", "opt_label": "opt"}
+}

@@ -1,0 +1,113 @@
+{
+  "parsed_at": "2026-03-20T00:00:00+00:00",
+  "artifact_dir": "/workspace/vllm/kernel_opt_artifacts/test",
+  "target": {
+    "model_id": "test-model",
+    "hardware": "L40S",
+    "dtype": "fp8",
+    "tp": 1
+  },
+  "environment": {
+    "gpu_model": "NVIDIA L40S",
+    "cuda_version": "12.9"
+  },
+  "campaign": {
+    "status": "campaign_exhausted",
+    "total_rounds": 1,
+    "cumulative_speedup_vs_round1": 1.05,
+    "shipped_optimizations_count": 1,
+    "shipped_optimization_ids": ["op001"],
+    "rounds": [
+      {
+        "round_id": 1,
+        "top_bottleneck_share_pct": 29.8,
+        "candidates_proposed": 2,
+        "candidates_selected": 2,
+        "candidates_shipped": 1,
+        "candidates_failed": 1,
+        "round_e2e_speedup": 1.05,
+        "cumulative_speedup_after": 1.05
+      }
+    ]
+  },
+  "gates": {
+    "phase1_baseline": {
+      "status": "PASS"
+    },
+    "validation_gates": [
+      {
+        "track_id": "op001",
+        "status": "PASSED",
+        "correctness": true,
+        "kernel_speedup": 1.15,
+        "e2e_speedup": 1.05
+      },
+      {
+        "track_id": "op002",
+        "status": "FAILED",
+        "correctness": false,
+        "kernel_speedup": null,
+        "e2e_speedup": null
+      },
+      {
+        "track_id": "op003",
+        "status": "GATED_PASS",
+        "correctness": true,
+        "kernel_speedup": 1.08,
+        "e2e_speedup": 1.03,
+        "per_bs_verdict": {
+          "1": "PASS",
+          "8": "PASS",
+          "32": "REGRESSED"
+        }
+      }
+    ],
+    "integration": {
+      "status": "single_pass",
+      "final_decision": "ship_op001"
+    }
+  },
+  "debate": {
+    "campaign_rounds_with_debate": 1,
+    "total_proposals": 2,
+    "proposals_with_micro_experiments": 1,
+    "proposals_with_grounded_data": 2,
+    "micro_experiment_rate": 0.5,
+    "grounding_rate": 1.0,
+    "total_debate_rounds_across_campaign": 2,
+    "all_candidate_scores": [7.5, 5.2],
+    "per_campaign_round": [
+      {
+        "campaign_round": 1,
+        "proposals_count": 2,
+        "debate_rounds": 2
+      }
+    ]
+  },
+  "tracks": [
+    {
+      "op_id": "op001",
+      "campaign_round": 1,
+      "status": "PASSED",
+      "correctness": true,
+      "kernel_speedup": 1.15,
+      "e2e_speedup": 1.05
+    },
+    {
+      "op_id": "op002",
+      "campaign_round": 1,
+      "status": "FAILED",
+      "correctness": false,
+      "kernel_speedup": null,
+      "e2e_speedup": null
+    },
+    {
+      "op_id": "op003",
+      "campaign_round": 1,
+      "status": "GATED_PASS",
+      "correctness": true,
+      "kernel_speedup": 1.08,
+      "e2e_speedup": 1.03
+    }
+  ]
+}

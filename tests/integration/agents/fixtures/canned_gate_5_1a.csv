@@ -1,0 +1,4 @@
+batch_size,max_abs_err,max_rel_err,passed,nan_check,cuda_graph_check
+1,1.2e-05,3.1e-04,true,pass,pass
+4,1.5e-05,4.2e-04,true,pass,pass
+8,1.1e-05,2.8e-04,true,pass,pass

@@ -1,0 +1,44 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+model = "gpt-5.6-sol"
+personality = "pragmatic"
+model_verbosity = "low"
+model_reasoning_summary = "concise"
+model_reasoning_effort = "high"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+project_doc_max_bytes = 65536
+# Codex has web_search modes: "disabled", "cached", "live".
+web_search = "live"
+
+[features]
+multi_agent = false
+hooks = true
+# AMMO Pre/PostToolUse policy requires the fully intercepted shell path.
+shell_tool = true
+unified_exec = false
+
+[features.multi_agent_v2]
+enabled = true
+hide_spawn_agent_metadata = false
+tool_namespace = "agents"
+# Includes the root thread: preserves the prior 16-subagent V1 capacity.
+max_concurrent_threads_per_session = 17
+
+[agents]
+job_max_runtime_seconds = 7200
+
+[[skills.config]]
+path = ".codex/skills/ammo"
+enabled = true
+
+[shell_environment_policy]
+inherit = "all"
+
+[shell_environment_policy.set]
+CUDA_VISIBLE_DEVICES = "{gpu_ids_env}"
+AMMO_SESSION_ID = "{session_id}"
+AMMO_GPU_RES_DIR = "/tmp/ammo_gpu_res_{session_id}"
+AMMO_PROJECT_DIR = "{worktree_path}"
+
+[tui]
+status_line = ["model-with-reasoning", "git-branch", "context-remaining", "five-hour-limit", "weekly-limit", "codex-version", "session-id"]

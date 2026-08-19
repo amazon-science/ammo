@@ -1,0 +1,112 @@
+{
+  "session_id": "test-session-001",
+  "session_start": "2026-03-19T10:00:00.000Z",
+  "session_end": "2026-03-19T11:30:00.000Z",
+  "stage_timestamps": {
+    "round_1": {
+      "stage_1_baseline_start": "2026-03-19T10:00:00.000Z",
+      "stage_2_bottleneck_end": "2026-03-19T10:15:00.000Z",
+      "stage_3_debate_start": "2026-03-19T10:20:00.000Z",
+      "stage_3_debate_end": "2026-03-19T10:50:00.000Z",
+      "stage_4_5_impl_start": "2026-03-19T10:55:00.000Z",
+      "stage_4_5_impl_end": "2026-03-19T11:20:00.000Z",
+      "stage_6_7_eval_start": "2026-03-19T11:20:00.000Z",
+      "stage_6_7_eval_end": "2026-03-19T11:20:00.000Z"
+    }
+  },
+  "agent_costs": [
+    {
+      "name": "researcher-1",
+      "display_name": "researcher-1",
+      "role": "researcher",
+      "subagent_type": "ammo-researcher",
+      "description": "Baseline capture + bottleneck mining",
+      "team_name": null,
+      "spawn_timestamp": "2026-03-19T10:00:00.000Z",
+      "tool_use_id": "tu-researcher-001",
+      "total_tokens": 45000,
+      "tool_uses": 12,
+      "duration_ms": 120000,
+      "status": "completed",
+      "completion_timestamp": "2026-03-19T10:15:00.000Z"
+    },
+    {
+      "name": "champion-1",
+      "display_name": "champion-1",
+      "role": "champion",
+      "subagent_type": "ammo-champion",
+      "description": "Champion for MoE dispatch optimization",
+      "team_name": "ammo-round-1-test",
+      "spawn_timestamp": "2026-03-19T10:25:00.000Z",
+      "tool_use_id": "tu-champ-001",
+      "total_tokens": 30000,
+      "tool_uses": 8,
+      "duration_ms": 90000,
+      "status": "completed",
+      "completion_timestamp": "2026-03-19T10:45:00.000Z"
+    },
+    {
+      "name": "champion-2",
+      "display_name": "champion-2",
+      "role": "champion",
+      "subagent_type": "ammo-champion",
+      "description": "Champion for Mamba SSM optimization",
+      "team_name": "ammo-round-1-test",
+      "spawn_timestamp": "2026-03-19T10:30:00.000Z",
+      "tool_use_id": "tu-champ-002",
+      "total_tokens": 28000,
+      "tool_uses": 7,
+      "duration_ms": 85000,
+      "status": "completed",
+      "completion_timestamp": "2026-03-19T10:47:00.000Z"
+    },
+    {
+      "name": "impl-champion-op001",
+      "display_name": "impl-champion-op001",
+      "role": "implementer",
+      "subagent_type": "ammo-impl-champion",
+      "description": "Implement MoE dispatch kernel fusion (op001)",
+      "team_name": null,
+      "spawn_timestamp": "2026-03-19T10:55:00.000Z",
+      "tool_use_id": "tu-impl-001",
+      "total_tokens": 60000,
+      "tool_uses": 18,
+      "duration_ms": 180000,
+      "status": "completed",
+      "completion_timestamp": "2026-03-19T11:20:00.000Z"
+    }
+  ],
+  "team_lifecycle": [
+    {
+      "name": "ammo-round-1-test",
+      "create_timestamp": "2026-03-19T10:20:00.000Z",
+      "description": "Round 1 debate",
+      "delete_timestamp": "2026-03-19T10:50:00.000Z",
+      "duration_seconds": 1800.0
+    }
+  ],
+  "subagents": [],
+  "cost_summary": {
+    "total_agent_invocations": 4,
+    "total_tokens": 163000,
+    "total_duration_ms": 475000,
+    "by_role": {
+      "researcher": {
+        "count": 1,
+        "total_tokens": 45000,
+        "total_duration_ms": 120000
+      },
+      "champion": {
+        "count": 2,
+        "total_tokens": 58000,
+        "total_duration_ms": 175000
+      },
+      "implementer": {
+        "count": 1,
+        "total_tokens": 60000,
+        "total_duration_ms": 180000
+      }
+    }
+  },
+  "parsed_at": "2026-03-20T00:00:00+00:00"
+}

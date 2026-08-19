@@ -1,0 +1,63 @@
+{
+  "_comment": "Declarative AMMO state-machine data consumed by ammo_state.py. Holds STRUCTURE and CONDITIONS only. Schema enums (track/integration/status) and config defaults are NOT duplicated here \u2014 the engine loads those from .claude/schemas/state.schema.json at runtime. Message TEXT lives in ammo_state.py python templates, not here.",
+  "stage_ladder": [
+    "1_baseline",
+    "2_bottleneck_mining",
+    "3_debate",
+    "4_5_parallel_tracks",
+    "6_integration",
+    "7_campaign_eval",
+    "7b_report"
+  ],
+  "terminal_statuses": [
+    "campaign_complete",
+    "campaign_exhausted"
+  ],
+  "track_terminal_statuses": [
+    "PASS",
+    "GATED_PASS",
+    "FAIL"
+  ],
+  "track_passing_statuses": [
+    "PASS",
+    "GATED_PASS"
+  ],
+  "integration_terminal_statuses": [
+    "completed",
+    "exhausted",
+    "failed"
+  ],
+  "integration_ship_statuses": [
+    "combined",
+    "single_pass",
+    "gated_pass"
+  ],
+  "audit_stage_key_map": {
+    "2_bottleneck_mining": "stage_1",
+    "3_debate": "stage_2",
+    "6_integration": "stage_45",
+    "7_campaign_eval": "stage_67"
+  },
+  "audit_new_round_start_stages": [
+    "1_baseline",
+    "2_bottleneck_mining",
+    "3_debate"
+  ],
+  "stage_2_audit_min_schema": {
+    "major": 4,
+    "minor": 1
+  },
+  "audit_started_min_schema": {
+    "major": 4,
+    "minor": 2
+  },
+  "outcome_next_stage": {
+    "SHIP": "2_bottleneck_mining",
+    "EXHAUSTED": "3_debate",
+    "EXHAUSTED_MINING_INVALIDATED": "2_bottleneck_mining"
+  },
+  "backfill_mining_fields": [
+    "decode_frac",
+    "component_breakdown"
+  ]
+}

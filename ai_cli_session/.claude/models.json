@@ -1,0 +1,39 @@
+{
+  "_comment": [
+    "Single record of every model pin in the AMMO session template.",
+    "It records current reality; it does not select models at runtime.",
+    "tests/unit/test_model_roster.py asserts each pin site still agrees, so a",
+    "model bump that misses a site fails loudly instead of drifting.",
+    "Update this file in the SAME edit as the pin site."
+  ],
+  "aliases": {
+    "_comment": "Claude Code alias -> model id. settings.local.json env holds these.",
+    "opus": "claude-opus-5",
+    "sonnet": "claude-sonnet-5",
+    "haiku": "claude-haiku-4-5-20251001"
+  },
+  "claude": {
+    "_comment": "Pins in ai_cli_session/.claude. Agent values are an alias or an explicit id. Every opus agent follows the opus alias; see docs/AMMO_DEEP_DIVE.md 'Which model runs which agent' for the rationale.",
+    "session_model": "claude-opus-5",
+    "agents": {
+      "ammo-auditor": "opus",
+      "ammo-champion": "opus",
+      "ammo-delegate": "sonnet",
+      "ammo-impl-champion": "opus",
+      "ammo-investigator": "opus",
+      "ammo-report-writer": "opus",
+      "ammo-researcher": "opus",
+      "ammo-resolver": "opus",
+      "ammo-transcript-monitor": "opus"
+    },
+    "inline_hook_models": {
+      "_comment": "Agent-type hooks inside agent frontmatter carry their own pin.",
+      "ammo-report-writer:Stop:fact-checker": "sonnet"
+    }
+  },
+  "codex": {
+    "_comment": "The generated CODEX_HOME config wins at runtime; the project copy is the template. Both must state the same model.",
+    "project_config": "gpt-5.6-sol",
+    "generated_config": "gpt-5.6-sol"
+  }
+}

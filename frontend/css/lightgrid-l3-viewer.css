@@ -1,0 +1,413 @@
+/* ═══════════════════════════════════════════════════════════════
+   LIGHTGRID · L3 Artifact Viewer — production port
+   ─────────────────────────────────────────────────────────────
+   All new viewer CSS lives here. `lightgrid.css` is read-only per
+   plan §Step 1 (B8 guards the sha256). Tokens: `--void`, `--panel`,
+   `--cyan`, `--magenta`, `--mint`, `--amber`, `--violet`, `--ghost`,
+   `--dim`, `--text`, `--wire`, `--font-head`, `--font-mono`,
+   `--font-body`, `--glow-*`. Consumes them only — never redefines.
+
+   Structural contract:
+     .l3-meta-bar             — one dot · path on the left, mime/size/
+                                renderer on the right.
+     .json-tree / .jt-*       — collapsible JSON viewer.
+     .code-view / .code-gutter / .code-content
+                              — line-numbered code pane + hljs retheme.
+     .image-view / .image-frame / .image-caption
+                              — inline-image pane (≤ 5 MB gate).
+     .log-view + .ts/.info/.warn/.err/.ok
+                              — plaintext / log pane.
+
+   NOT declared here (intentional):
+     .l3-section              — kept in lightgrid.css (existing reveal
+                                animation survives; B5 guards).
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Single source of truth for line-height in code panes.
+     Applied identically to `.code-gutter div` and `.code-content pre`
+     so the gutter stays pixel-aligned with wrapped code text. */
+  --l3-code-line-h: 1.55em;
+}
+
+/* ─── Meta bar ──────────────────────────────────────────────────
+   Shows which artifact is loaded, its mime, size, and the renderer
+   in use. Dot glows cyan; right-side labels in `--ghost`, values
+   in `--cyan` so the eye lands on the data, not the label. */
+.l3-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--wire);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.l3-meta-bar .dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: var(--glow-cyan-subtle);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.l3-meta-bar .path {
+  color: var(--text);
+  letter-spacing: 0.05em;
+  text-transform: none;
+}
+.l3-meta-bar .meta-right {
+  display: flex;
+  gap: 16px;
+}
+.l3-meta-bar .meta-right span {
+  color: var(--ghost);
+}
+.l3-meta-bar .meta-right b {
+  color: var(--cyan);
+  font-weight: normal;
+  letter-spacing: 0.12em;
+}
+
+/* ─── JSON tree ─────────────────────────────────────────────────
+   Vanilla collapsible tree. Depth 0+1 expanded by default; depth
+   2+ collapsed via `.jt-children.hidden`. Cycle-safe: circular refs
+   render `<span class="jt-null">⟲ circular ref</span>`. */
+.json-tree {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.jt-node       { padding-left: 18px; position: relative; }
+.jt-root       { padding-left: 0; }
+.jt-line       { display: flex; align-items: baseline; gap: 4px; }
+.jt-toggle {
+  position: absolute;
+  left: 2px; top: 1px;
+  width: 12px; height: 16px;
+  cursor: pointer;
+  color: var(--cyan);
+  user-select: none;
+  font-size: 10px;
+  text-align: center;
+  transition: transform 0.15s;
+}
+.jt-toggle.collapsed  { transform: rotate(-90deg); }
+.jt-key               { color: var(--cyan); }
+.jt-str               { color: var(--magenta); }
+.jt-num               { color: var(--amber); }
+.jt-bool              { color: var(--mint); }
+.jt-null              { color: var(--ghost); font-style: italic; }
+.jt-punct             { color: var(--dim); }
+.jt-count             { color: var(--ghost); font-size: 11px; margin-left: 6px; font-style: italic; }
+.jt-children.hidden   { display: none; }
+.jt-expandable        { cursor: pointer; }
+.jt-expandable:hover > .jt-line > .jt-key { text-shadow: var(--glow-cyan-subtle); }
+
+/* ─── Code view ─────────────────────────────────────────────────
+   Line-numbered pane with hljs retheme below. `white-space: pre`
+   is mandatory (B7 asserts): leading-whitespace matters in code.
+   The gutter and the <pre> share `--l3-code-line-h` so the line
+   numbers stay registered with the text. */
+.code-view {
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: var(--l3-code-line-h);
+  background: transparent;
+}
+.code-gutter {
+  padding: 0 12px 0 4px;
+  text-align: right;
+  color: var(--ghost);
+  user-select: none;
+  border-right: 1px solid var(--wire);
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+}
+.code-gutter div {
+  height: var(--l3-code-line-h);
+}
+.code-content {
+  padding: 0 0 0 14px;
+  flex: 1;
+  overflow: visible;
+  min-width: 0;
+}
+.code-content pre {
+  margin: 0;
+  background: transparent;
+  line-height: var(--l3-code-line-h);
+  white-space: pre;
+  overflow-x: auto;
+}
+.code-content code {
+  background: transparent;
+  font-size: 12.5px;
+}
+
+/* hljs LIGHTGRID retheme — overrides github-dark (loaded AFTER CDN;
+   B4 asserts link order). The five accent colors match the mockup:
+   cyan keyword, magenta string, amber number, mint function/title,
+   violet type, ghost-italic comment. */
+.hljs {
+  background: transparent !important;
+  color: var(--text) !important;
+  padding: 0 !important;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: var(--cyan) !important;
+  text-shadow: 0 0 4px rgba(0, 243, 255, 0.3);
+}
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+  color: var(--magenta) !important;
+}
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--amber) !important;
+}
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion,
+.hljs-meta {
+  color: var(--ghost) !important;
+  font-style: italic;
+}
+.hljs-title,
+.hljs-function,
+.hljs-class,
+.hljs-section {
+  color: var(--mint) !important;
+}
+.hljs-type,
+.hljs-params {
+  color: var(--violet) !important;
+}
+
+/* ─── Image view ────────────────────────────────────────────────
+   Only used for images that pass the 5 MB gate in `_shouldInlineImage`.
+   Double bracket marks (cyan TL, magenta BR) keep the PCB metaphor. */
+.image-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+}
+.image-frame {
+  position: relative;
+  border: 1px solid var(--wire);
+  padding: 6px;
+  background: var(--void);
+  max-width: 100%;
+}
+.image-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 520px;
+}
+.image-frame::before,
+.image-frame::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+}
+.image-frame::before {
+  top: -4px; left: -4px;
+  border-top: 1px solid var(--cyan);
+  border-left: 1px solid var(--cyan);
+}
+.image-frame::after {
+  bottom: -4px; right: -4px;
+  border-bottom: 1px solid var(--magenta);
+  border-right: 1px solid var(--magenta);
+}
+.image-caption {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.image-caption b {
+  color: var(--cyan);
+  font-weight: normal;
+}
+
+/* ─── Plaintext / log view ─────────────────────────────────────
+   `word-break: break-word` + `white-space: pre-wrap` so wide log
+   lines wrap without an obnoxious horizontal scrollbar, but true
+   formatting (tabs, blank lines) still shows through. The class
+   accents `.ts/.info/.warn/.err/.ok` are pre-baked for future log
+   templating; renderPlaintextBlock emits plain text today. */
+.log-view {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-view .ts   { color: var(--ghost); }
+.log-view .info { color: var(--cyan); }
+.log-view .warn { color: var(--amber); }
+.log-view .err  { color: var(--red); }
+.log-view .ok   { color: var(--mint); }
+
+/* ─── Tab bar gradient override ─────────────────────────────────
+   lightgrid.css ships `.lg-artifact-group-list` with a faint
+   `rgba(0,243,255,0.015), transparent 40%` wash. Mockup's tab bar
+   uses the deeper `0.03 → transparent` so the header line reads as
+   a contained band, not a fade into the void. */
+.lg-artifact-group-list {
+  background: linear-gradient(180deg, rgba(0,243,255,0.03), transparent);
+}
+
+/* ─── Markdown (l3-prose) — align with mockup ──────────────────
+   Production `.l3-prose` in lightgrid.css predates the mockup's
+   markdown rules. These overrides bring headings, code, tables,
+   blockquotes, links, and rules in line with `.md` in the mockup.
+   Body copy (`p`, `li`) already matches via lightgrid.css. */
+.l3-prose h1, .l3-prose h2, .l3-prose h3, .l3-prose h4 {
+  font-family: var(--font-head);
+  letter-spacing: 0.08em;
+  margin-top: 1.4em;
+  margin-bottom: 0.6em;
+  font-weight: 600;
+}
+.l3-prose h1 {
+  font-size: 20px;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan-subtle);
+  border-bottom: 1px solid var(--wire);
+  padding-bottom: 8px;
+}
+.l3-prose h2 {
+  font-size: 16px;
+  color: var(--mint);
+  text-shadow: 0 0 8px rgba(0,255,178,0.35);
+}
+.l3-prose h3 {
+  font-size: 13px;
+  color: var(--magenta);
+  text-shadow: var(--glow-magenta-subtle);
+}
+.l3-prose code {
+  font-family: var(--font-mono);
+  background: rgba(0,243,255,0.07);
+  color: var(--cyan);
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 12px;
+}
+.l3-prose pre {
+  background: #05060c;
+  border: 1px solid var(--wire);
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+.l3-prose pre code {
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  font-size: 12px;
+}
+.l3-prose blockquote {
+  border-left: 2px solid var(--magenta);
+  padding-left: 12px;
+  color: var(--dim);
+  margin: 10px 0;
+  font-style: italic;
+}
+.l3-prose table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.l3-prose th, .l3-prose td {
+  border: 1px solid var(--wire);
+  padding: 6px 12px;
+  text-align: left;
+}
+.l3-prose th {
+  background: rgba(0,243,255,0.06);
+  color: var(--cyan);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 500;
+  font-size: 11px;
+}
+.l3-prose a {
+  color: var(--cyan);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--cyan);
+}
+.l3-prose a:hover {
+  text-shadow: var(--glow-cyan-subtle);
+  text-decoration: none;
+}
+.l3-prose hr {
+  border: 0;
+  border-top: 1px dashed var(--wire);
+  margin: 18px 0;
+}
+/* Natural artifact directory browser. JS supplies a flat visible-row model,
+ * allowing arbitrary filesystem depth without recursive Alpine templates. */
+.lg-artifact-browser {
+  padding: 6px 0;
+  max-height: 360px;
+  overflow: auto;
+  background: linear-gradient(180deg, rgba(0,243,255,0.015), transparent 40%);
+}
+.lg-artifact-browser-row {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; min-height: 31px;
+  padding: 6px 14px 6px 12px;
+  border: 0; border-left: 2px solid transparent;
+  border-bottom: 1px dashed rgba(0,243,255,0.07);
+  background: transparent; color: var(--dim); cursor: pointer;
+  font: 11px var(--font-mono); letter-spacing: .035em; text-align: left;
+  transition: color .15s ease, background .15s ease, border-color .15s ease;
+}
+.lg-artifact-browser-row:hover { color: var(--text); background: rgba(0,243,255,.045); border-left-color: rgba(0,243,255,.35); }
+.lg-artifact-browser-row.is-root { color: var(--cyan); font-family: var(--font-head); font-size: 10px; letter-spacing: .18em; }
+.lg-artifact-browser-row.active { color: var(--cyan); background: rgba(0,243,255,.08); border-left-color: var(--cyan); }
+.lg-artifact-browser-row.has-error { color: var(--red); }
+.lg-artifact-browser-chevron {
+  width: 8px; height: 8px; flex: 0 0 8px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); transition: transform .16s ease;
+}
+.lg-artifact-browser-chevron.expanded { transform: rotate(45deg); }
+.lg-artifact-browser-chevron.loading { animation: lg-artifact-chevron-pulse .7s ease infinite alternate; }
+.lg-artifact-browser-file-mark { width: 8px; flex: 0 0 8px; color: var(--ghost); text-align: center; }
+.lg-artifact-browser-status { color: var(--ghost); font-size: 8px; letter-spacing: .12em; }
+.lg-artifact-browser-status.error { color: var(--red); }
+.lg-artifact-browser-loading, .lg-artifact-browser-empty {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 58px; color: var(--ghost);
+  font: 9px var(--font-mono); letter-spacing: .14em;
+}
+@keyframes lg-artifact-chevron-pulse { to { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  .lg-artifact-browser-row, .lg-artifact-browser-chevron { transition: none !important; animation: none !important; }
+}

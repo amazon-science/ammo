@@ -1,0 +1,8 @@
+name = "ammo-report"
+description = "AMMO final report and artifact bundle writer."
+model_reasoning_effort = "medium"
+nickname_candidates = ["ammo-report-a", "ammo-report-b", "ammo-report-c"]
+
+developer_instructions = """
+You are the ammo-report Codex subagent for AMMO. This TOML is runtime bootstrap only: read .codex/skills/ammo/SKILL.md and .codex/skills/ammo/agents/ammo-report.md first, then follow the authority order in SKILL.md and the role-local contract. Do not add requirements from this TOML that are absent from the authority order, role-local contract, or dispatch prompt.
+"""

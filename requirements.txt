@@ -1,0 +1,22 @@
+# Base Python requirements installed before requirements.server.txt.
+#
+# Most of what the server needs arrives with vLLM, which the Dockerfile installs
+# first (fastapi, uvicorn, httpx, websockets, starlette, pydantic, torch, triton,
+# mcp, requests, pyyaml, numpy, jsonschema, and more). This file pins only what
+# the server and the AMMO session template import directly, so the guarantee is
+# explicit rather than incidental.
+#
+# `datasets` is intentionally NOT listed: the vllm[bench] dataset paths are never
+# invoked here. GSM8K correctness runs offline from the bundled
+# ai_cli_session/.claude/skills/ammo/data/gsm8k_full.json.
+
+# Numerics for the benchmark sweep scripts
+numpy
+
+# Test runner (tests/ and the AMMO template's own suite)
+pytest
+
+# AMMO state-file schema validation (ammo_state.py, new_target.py, and the
+# Claude/Codex hook guards). Also a vLLM transitive, pinned here deliberately so
+# the session hooks do not depend on that staying true.
+jsonschema

@@ -1,0 +1,505 @@
+/* ═══════════════════════════════════════════════════════════════
+   LIGHTGRID · Report Overlay (Option 1 — "Console")
+   ─────────────────────────────────────────────────────────────
+   Uses only canonical tokens from lightgrid.css —
+   never redefines them. Structural contract:
+     .lg-report-modal       — outer container, corner brackets
+     .lg-report-header      — PCB spec strip (dot + label + fields)
+     .lg-report-body        — flex row: TOC + content
+     .lg-report-toc         — numbered left-rail navigation
+     .lg-report-content     — prose surface (+ .report-prose rules)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Entry / exit animation ─────────────────────────────────── */
+@keyframes lgReportIn {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.lg-report-modal-enter { animation: lgReportIn 0.22s ease-out forwards; }
+
+/* ─── Outer container ────────────────────────────────────────── */
+.lg-report-modal {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--wire);
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 20px 80px rgba(0, 243, 255, 0.06);
+  font-family: var(--font-body);
+  color: var(--text);
+}
+
+/* Corner brackets — cyan top (TL/TR), magenta bottom (BL/BR) */
+.lg-report-modal > .lg-corner {
+  position: absolute;
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+  z-index: 5;
+}
+.lg-report-modal > .lg-corner.tl {
+  top: -1px; left: -1px;
+  border-top: 1.5px solid var(--cyan);
+  border-left: 1.5px solid var(--cyan);
+  filter: drop-shadow(0 0 4px rgba(0, 243, 255, 0.3));
+}
+.lg-report-modal > .lg-corner.tr {
+  top: -1px; right: -1px;
+  border-top: 1.5px solid var(--cyan);
+  border-right: 1.5px solid var(--cyan);
+  filter: drop-shadow(0 0 4px rgba(0, 243, 255, 0.3));
+}
+.lg-report-modal > .lg-corner.bl {
+  bottom: -1px; left: -1px;
+  border-bottom: 1.5px solid var(--magenta);
+  border-left: 1.5px solid var(--magenta);
+  filter: drop-shadow(0 0 4px rgba(255, 0, 170, 0.3));
+}
+.lg-report-modal > .lg-corner.br {
+  bottom: -1px; right: -1px;
+  border-bottom: 1.5px solid var(--magenta);
+  border-right: 1.5px solid var(--magenta);
+  filter: drop-shadow(0 0 4px rgba(255, 0, 170, 0.3));
+}
+
+/* ─── Header: dot badge + spec strip + close ─────────────────── */
+.lg-report-header {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  border-bottom: 1px solid var(--wire);
+  background: linear-gradient(180deg, rgba(0, 243, 255, 0.025), transparent);
+  flex-shrink: 0;
+}
+.lg-report-header .lg-rh-badge {
+  padding: 12px 18px;
+  border-right: 1px solid var(--wire);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lg-report-header .lg-rh-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: var(--glow-cyan-subtle);
+  animation: lg-report-dot-pulse 1.5s ease-in-out infinite;
+}
+@keyframes lg-report-dot-pulse {
+  0%, 100% { transform: scale(1);   opacity: 1;   }
+  50%      { transform: scale(1.2); opacity: 0.7; }
+}
+.lg-report-header .lg-rh-label {
+  font-family: var(--font-head);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--cyan);
+  text-transform: uppercase;
+}
+
+.lg-report-header .lg-rh-spec {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  text-transform: uppercase;
+  min-width: 0;
+  overflow: hidden;
+}
+.lg-report-header .lg-rh-field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.lg-report-header .lg-rh-k { color: var(--ghost); flex-shrink: 0; }
+.lg-report-header .lg-rh-v {
+  color: var(--text);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lg-report-header .lg-rh-v.cyan  { color: var(--cyan); }
+.lg-report-header .lg-rh-v.mint  { color: var(--mint); }
+.lg-report-header .lg-rh-v.amber { color: var(--amber); }
+.lg-report-header .lg-rh-v.red   { color: var(--red); }
+
+.lg-report-header .lg-rh-close {
+  border-left: 1px solid var(--wire);
+  padding: 12px 18px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lg-report-header .lg-rh-close:hover {
+  color: var(--red);
+  background: rgba(255, 51, 85, 0.06);
+}
+
+/* ─── Body layout ────────────────────────────────────────────── */
+.lg-report-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ─── TOC (left rail, numbered) ──────────────────────────────── */
+.lg-report-toc {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--wire);
+  overflow-y: auto;
+  padding: 14px 0;
+  background: rgba(0, 243, 255, 0.01);
+  scrollbar-color: rgba(0, 243, 255, 0.2) transparent;
+  scrollbar-width: thin;
+}
+.lg-report-toc::-webkit-scrollbar { width: 5px; }
+.lg-report-toc::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.15); }
+.lg-report-toc::-webkit-scrollbar-thumb:hover { background: rgba(0, 243, 255, 0.3); }
+
+.lg-report-toc .lg-toc-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  color: var(--ghost);
+  padding: 0 18px 12px;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.04);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+.lg-report-toc .lg-toc-label b {
+  color: var(--cyan);
+  font-weight: normal;
+}
+.lg-report-toc a {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--dim);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: all 0.15s;
+}
+.lg-report-toc a .lg-toc-idx {
+  color: var(--ghost);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.lg-report-toc a:hover {
+  color: var(--text);
+  border-left-color: rgba(0, 243, 255, 0.35);
+  background: rgba(0, 243, 255, 0.03);
+}
+.lg-report-toc a.active {
+  color: var(--cyan);
+  border-left-color: var(--cyan);
+  background: rgba(0, 243, 255, 0.04);
+  text-shadow: 0 0 6px rgba(0, 243, 255, 0.3);
+}
+.lg-report-toc a.active .lg-toc-idx { color: var(--magenta); }
+.lg-report-toc a.toc-h3 {
+  padding-left: 36px;
+  font-size: 11px;
+}
+
+/* ─── Content surface ────────────────────────────────────────── */
+.lg-report-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 36px 48px;
+  scrollbar-color: rgba(0, 243, 255, 0.2) transparent;
+  scrollbar-width: thin;
+}
+.lg-report-content::-webkit-scrollbar { width: 6px; }
+.lg-report-content::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.15); }
+.lg-report-content::-webkit-scrollbar-thumb:hover { background: rgba(0, 243, 255, 0.3); }
+
+/* ─── Loading state ──────────────────────────────────────────── */
+.lg-report-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.lg-report-loading .lg-rl-spinner {
+  width: 32px; height: 32px;
+  border: 1px solid var(--wire);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  box-shadow: var(--glow-cyan-subtle);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PROSE — markdown content inside .lg-report-content
+   ═══════════════════════════════════════════════════════════════ */
+.lg-report-content {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text);
+}
+.lg-report-content > *:first-child { margin-top: 0; }
+
+/* Headings */
+.lg-report-content h1 {
+  font-family: var(--font-head);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--cyan);
+  margin: 0 0 8px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--wire);
+  text-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+  text-transform: uppercase;
+}
+.lg-report-content h2 {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--text);
+  margin: 2rem 0 0.75rem 0;
+  padding: 6px 0 6px 14px;
+  border-left: 2px solid var(--cyan);
+  text-transform: uppercase;
+  position: relative;
+}
+.lg-report-content h2::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 8px;
+  background: var(--cyan);
+  box-shadow: var(--glow-cyan-subtle);
+}
+.lg-report-content h3 {
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: var(--magenta);
+  margin: 1.5rem 0 0.5rem 0;
+  text-transform: uppercase;
+}
+
+/* Inline */
+.lg-report-content p { margin: 0.75rem 0; color: var(--text); }
+.lg-report-content a {
+  color: var(--mint);
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(0, 255, 178, 0.35);
+}
+.lg-report-content a:hover {
+  color: var(--cyan);
+  border-bottom-color: var(--cyan);
+  text-shadow: 0 0 4px rgba(0, 243, 255, 0.4);
+}
+.lg-report-content strong { color: var(--cyan); font-weight: 500; }
+.lg-report-content em     { color: var(--amber); font-style: normal; }
+
+/* Tables */
+.lg-report-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  border: 1px solid var(--wire);
+  background: rgba(0, 243, 255, 0.015);
+}
+.lg-report-content thead th {
+  text-align: left;
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-weight: normal;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  background: rgba(0, 243, 255, 0.04);
+  border-bottom: 1px solid rgba(0, 243, 255, 0.25);
+}
+.lg-report-content tbody td {
+  padding: 7px 14px;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.06);
+  color: var(--text);
+}
+.lg-report-content tbody tr:last-child td { border-bottom: none; }
+.lg-report-content tbody tr:hover { background: rgba(0, 243, 255, 0.03); }
+.lg-report-content tbody td:first-child { color: var(--dim); }
+
+/* Code blocks */
+.lg-report-content pre {
+  background: var(--code-bg);
+  border: 1px solid var(--wire);
+  padding: 14px 16px;
+  margin: 1rem 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  position: relative;
+}
+.lg-report-content pre::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: -1px;
+  width: 10px; height: 10px;
+  border-top: 1px solid var(--cyan);
+  border-left: 1px solid var(--cyan);
+}
+.lg-report-content pre::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; right: -1px;
+  width: 10px; height: 10px;
+  border-bottom: 1px solid var(--magenta);
+  border-right: 1px solid var(--magenta);
+}
+.lg-report-content :not(pre) > code {
+  background: rgba(0, 243, 255, 0.08);
+  color: var(--cyan);
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  border: 1px solid rgba(0, 243, 255, 0.15);
+}
+
+/* Blockquote — callout with violet inset caret */
+.lg-report-content blockquote {
+  margin: 1.25rem 0;
+  padding: 12px 16px 12px 18px;
+  background: rgba(199, 138, 255, 0.04);
+  border-left: 2px solid var(--violet);
+  color: var(--text);
+  position: relative;
+}
+.lg-report-content blockquote::before {
+  content: '◂';
+  position: absolute;
+  left: -8px;
+  top: 10px;
+  color: var(--violet);
+  font-size: 10px;
+  background: var(--panel);
+  padding: 0 2px;
+}
+.lg-report-content blockquote p:first-child { margin-top: 0; }
+.lg-report-content blockquote p:last-child  { margin-bottom: 0; }
+.lg-report-content blockquote strong { color: var(--violet); }
+
+/* Images — bracketed frame, PCB metaphor */
+.lg-report-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1rem auto;
+  border: 1px solid var(--wire);
+  padding: 4px;
+  background: var(--void);
+  transition: transform 0.2s ease;
+  cursor: zoom-in;
+}
+.lg-report-content img:hover { transform: scale(1.01); }
+
+/* Lists */
+.lg-report-content ul,
+.lg-report-content ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+.lg-report-content li { margin: 0.25rem 0; }
+.lg-report-content ul li::marker { color: var(--cyan); }
+.lg-report-content ol li::marker { color: var(--magenta); }
+
+/* Horizontal rule */
+.lg-report-content hr {
+  border: none;
+  border-top: 1px solid var(--wire);
+  margin: 2rem 0;
+}
+
+/* ─── hljs retheme inside report ────────────────────────────────
+   Overrides github-dark (same strategy as lightgrid-l3-viewer.css).
+   Five accent colors: cyan keyword, magenta string, amber number,
+   mint function/title, violet type, ghost-italic comment.
+   ═════════════════════════════════════════════════════════════ */
+.lg-report-content .hljs {
+  background: transparent !important;
+  color: var(--text) !important;
+  padding: 0 !important;
+}
+.lg-report-content .hljs-keyword,
+.lg-report-content .hljs-selector-tag,
+.lg-report-content .hljs-built_in,
+.lg-report-content .hljs-name,
+.lg-report-content .hljs-tag {
+  color: var(--cyan) !important;
+  text-shadow: 0 0 4px rgba(0, 243, 255, 0.3);
+}
+.lg-report-content .hljs-string,
+.lg-report-content .hljs-attr,
+.lg-report-content .hljs-symbol,
+.lg-report-content .hljs-bullet,
+.lg-report-content .hljs-addition {
+  color: var(--magenta) !important;
+}
+.lg-report-content .hljs-number,
+.lg-report-content .hljs-literal,
+.lg-report-content .hljs-variable,
+.lg-report-content .hljs-template-variable {
+  color: var(--amber) !important;
+}
+.lg-report-content .hljs-comment,
+.lg-report-content .hljs-quote,
+.lg-report-content .hljs-deletion,
+.lg-report-content .hljs-meta {
+  color: var(--ghost) !important;
+  font-style: italic;
+}
+.lg-report-content .hljs-title,
+.lg-report-content .hljs-function,
+.lg-report-content .hljs-class,
+.lg-report-content .hljs-section {
+  color: var(--mint) !important;
+}
+.lg-report-content .hljs-type,
+.lg-report-content .hljs-params {
+  color: var(--violet) !important;
+}

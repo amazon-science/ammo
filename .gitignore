@@ -1,0 +1,31 @@
+# Python
+**__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+**build/
+**dist/
+
+# Virtualenvs / caches
+.venv/
+venv/
+.cache/
+.pytest_cache/
+
+# Secrets / local config
+.env
+.env.*
+# Root-anchored: the AMMO session template ships a tracked
+# ai_cli_session/.claude/settings.local.json that must NOT be ignored.
+/settings.local.json
+
+# Scratch / runtime artifacts
+scratch/
+**/scratch/
+/data/
+
+# Tooling
+**/.playwright-mcp/
+**/.superpowers/
+**/.worktrees/
+node_modules/

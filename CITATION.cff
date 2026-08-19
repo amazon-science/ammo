@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: >-
+  If you use AMMO in your research, please cite the paper below
+  (see preferred-citation).
+title: "AMMO: Agentic Model-on-Machine Optimizer"
+authors:
+  - family-names: Huang
+    given-names: Jin
+  - family-names: Zhang
+    given-names: Shuai
+  - family-names: Gai
+    given-names: Jiading
+  - family-names: Patil
+    given-names: Vihang
+  - family-names: Budhathoki
+    given-names: Kailash
+  - family-names: Khetan
+    given-names: Ashish
+  - family-names: Dabeer
+    given-names: Onkar
+license: CC-BY-NC-4.0
+preferred-citation:
+  type: article
+  title: "A Fast Kernel Is Not a Ship: Field Lessons from Agentic Optimization in vLLM"
+  year: 2026
+  notes: Under submission to the IAAI-27 track of AAAI-27.
+  authors:
+    - family-names: Huang
+      given-names: Jin
+    - family-names: Zhang
+      given-names: Shuai
+    - family-names: Gai
+      given-names: Jiading
+    - family-names: Patil
+      given-names: Vihang
+    - family-names: Budhathoki
+      given-names: Kailash
+    - family-names: Khetan
+      given-names: Ashish
+    - family-names: Dabeer
+      given-names: Onkar

@@ -1,0 +1,87 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh -lc 'script=session_start.py; root=\"$PWD\"; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/.codex/hooks/$script\"; fi; if [ -f \"$root/ai_cli_session/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/ai_cli_session/.codex/hooks/$script\"; fi; root=$(dirname \"$root\"); done; gitroot=$(git rev-parse --show-toplevel 2>/dev/null || pwd); for cand in \"$gitroot/ai_cli_session\"; do if [ -f \"$cand/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$cand/.codex/hooks/$script\"; fi; done; exit 0'"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh -lc 'script=pre_compact.py; root=\"$PWD\"; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/.codex/hooks/$script\"; fi; if [ -f \"$root/ai_cli_session/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/ai_cli_session/.codex/hooks/$script\"; fi; root=$(dirname \"$root\"); done; gitroot=$(git rev-parse --show-toplevel 2>/dev/null || pwd); for cand in \"$gitroot/ai_cli_session\"; do if [ -f \"$cand/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$cand/.codex/hooks/$script\"; fi; done; exit 0'",
+            "timeout": 30,
+            "statusMessage": "Saving AMMO compaction checkpoint"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh -lc 'script=pre_tool_use_guard.py; root=\"$PWD\"; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/.codex/hooks/$script\"; fi; if [ -f \"$root/ai_cli_session/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/ai_cli_session/.codex/hooks/$script\"; fi; root=$(dirname \"$root\"); done; gitroot=$(git rev-parse --show-toplevel 2>/dev/null || pwd); for cand in \"$gitroot/ai_cli_session\"; do if [ -f \"$cand/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$cand/.codex/hooks/$script\"; fi; done; exit 0'",
+            "statusMessage": "Checking AMMO command policy"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|Write|mcp__.*|spawn_agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh -lc 'script=post_tool_use_guard.py; root=\"$PWD\"; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/.codex/hooks/$script\"; fi; if [ -f \"$root/ai_cli_session/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/ai_cli_session/.codex/hooks/$script\"; fi; root=$(dirname \"$root\"); done; gitroot=$(git rev-parse --show-toplevel 2>/dev/null || pwd); for cand in \"$gitroot/ai_cli_session\"; do if [ -f \"$cand/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$cand/.codex/hooks/$script\"; fi; done; exit 0'",
+            "timeout": 7200,
+            "statusMessage": "Reviewing AMMO command result"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh -lc 'script=post_tool_use_guard.py; root=\"$PWD\"; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/.codex/hooks/$script\"; fi; if [ -f \"$root/ai_cli_session/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/ai_cli_session/.codex/hooks/$script\"; fi; root=$(dirname \"$root\"); done; gitroot=$(git rev-parse --show-toplevel 2>/dev/null || pwd); for cand in \"$gitroot/ai_cli_session\"; do if [ -f \"$cand/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$cand/.codex/hooks/$script\"; fi; done; exit 0'",
+            "statusMessage": "Registering AMMO subagent role"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh -lc 'script=post_tool_use_guard.py; root=\"$PWD\"; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/.codex/hooks/$script\"; fi; if [ -f \"$root/ai_cli_session/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/ai_cli_session/.codex/hooks/$script\"; fi; root=$(dirname \"$root\"); done; gitroot=$(git rev-parse --show-toplevel 2>/dev/null || pwd); for cand in \"$gitroot/ai_cli_session\"; do if [ -f \"$cand/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$cand/.codex/hooks/$script\"; fi; done; exit 0'",
+            "statusMessage": "Checking AMMO subagent completion"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/sh -lc 'script=stop_gate_guard.py; root=\"$PWD\"; while [ \"$root\" != \"/\" ]; do if [ -f \"$root/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/.codex/hooks/$script\"; fi; if [ -f \"$root/ai_cli_session/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$root/ai_cli_session/.codex/hooks/$script\"; fi; root=$(dirname \"$root\"); done; gitroot=$(git rev-parse --show-toplevel 2>/dev/null || pwd); for cand in \"$gitroot/ai_cli_session\"; do if [ -f \"$cand/.codex/hooks/$script\" ]; then exec /usr/bin/env python3 \"$cand/.codex/hooks/$script\"; fi; done; exit 0'",
+            "timeout": 7200,
+            "statusMessage": "Checking AMMO gate completion"
+          }
+        ]
+      }
+    ]
+  }
+}

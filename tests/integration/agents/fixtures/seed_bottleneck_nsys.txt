@@ -1,0 +1,6 @@
+fused_moe_kernel,1250.3,0.42
+flash_attention_fwd,890.1,0.78
+rms_norm_kernel,120.5,0.15
+rotary_embedding,95.2,0.22
+vocab_parallel_embedding,45.8,0.08
+silu_and_mul,38.1,0.12

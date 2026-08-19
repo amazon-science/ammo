@@ -1,0 +1,82 @@
+# Python
+# NOTE: Docker matches these with filepath.Match, which is ROOT-ANCHORED — unlike
+# .gitignore, a bare `__pycache__/` would only exclude the one at the repo root.
+# The `**/` prefix is required to keep nested caches (which embed build-machine
+# absolute paths in their .pyc headers) out of the image.
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Logs
+*.log
+logs/
+*.out
+*.err
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+docker-*.sh
+
+# Cache
+.cache/
+*.cache
+
+# Claude specific
+.claude/
+CLAUDE.local.md

@@ -1,0 +1,15 @@
+{
+  "op_id": "op-001",
+  "classification": "lossless",
+  "batch_results": [
+    {"batch_size": 1, "baseline_us": 125.3, "optimized_us": 108.7, "speedup": 1.153, "cache": "warm"},
+    {"batch_size": 4, "baseline_us": 489.1, "optimized_us": 421.5, "speedup": 1.160, "cache": "warm"},
+    {"batch_size": 8, "baseline_us": 952.0, "optimized_us": 814.3, "speedup": 1.169, "cache": "warm"},
+    {"batch_size": 1, "baseline_us": 132.1, "optimized_us": 118.4, "speedup": 1.116, "cache": "cold"},
+    {"batch_size": 4, "baseline_us": 501.8, "optimized_us": 445.2, "speedup": 1.127, "cache": "cold"},
+    {"batch_size": 8, "baseline_us": 978.5, "optimized_us": 862.1, "speedup": 1.135, "cache": "cold"}
+  ],
+  "weighted_speedup_warm": 1.161,
+  "weighted_speedup_cold": 1.126,
+  "shapes_tested": 3
+}

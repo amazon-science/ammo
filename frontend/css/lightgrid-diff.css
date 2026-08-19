@@ -1,0 +1,702 @@
+/* ═══════════════════════════════════════════════════════════════
+   LIGHTGRID · diff2html retheme — "Files Changed" tab
+   ─────────────────────────────────────────────────────────────
+   Overrides the diff2html default theme (bundled at
+   `https://unpkg.com/diff2html/bundles/css/diff2html.min.css`)
+   with the LIGHTGRID cyberpunk aesthetic: matrix-green additions,
+   neon-red deletions, cyan file headers on a near-black void.
+
+   Tokens consumed (from lightgrid.css — never redefined here):
+     --void, --panel, --panel-hover, --code-bg, --wire,
+     --cyan, --magenta, --mint, --amber, --red, --violet,
+     --text, --dim, --ghost,
+     --font-head, --font-mono, --font-body,
+     --glow-cyan-subtle, --glow-magenta-subtle, --glow-mint-subtle.
+
+   Local accents (matrix palette — diff-specific, not from lightgrid):
+     --diff-add:   #00ff41   (matrix green; brighter than --mint for contrast)
+     --diff-add-bg:  rgba(0,255,65,0.08)
+     --diff-add-glow: rgba(0,255,65,0.4)
+     --diff-del:   #ff3366   (neon red; brighter than --red for contrast)
+     --diff-del-bg:  rgba(255,51,102,0.08)
+     --diff-del-glow: rgba(255,51,102,0.4)
+
+   ─── DESIGN NOTES (the things that bit us) ─────────────────────
+   The diff2html upstream stylesheet is loaded LAST (lazy-injected
+   by JS), so on equal specificity it wins by source order. We use
+   two compounding tricks to guarantee victory:
+
+     1. Specificity: every override is scoped under `.d2h-wrapper`
+        (or deeper), giving us at least 0,2,0 vs upstream's 0,1,0.
+     2. `!important` on the structural properties that control the
+        side-by-side layout (`display`, `position`, `width`) — these
+        are non-negotiable and we have no business losing them.
+
+   The L3 viewer also wraps diff2html output in `.l3-prose`, which
+   has its own `tbody td` rule (padding + border) that bleeds in.
+   We neutralise that explicitly below.
+
+   The original failure: diff2html sets `position:absolute` on
+   `.d2h-code-side-linenumber`, which (per CSS display blockification)
+   forces `<td>`s with `display:table-cell` to compute as `display:block`
+   — collapsing the entire side-by-side grid into stacked blob squares.
+   Fix: force `position:static` + `display:table-cell` on every cell.
+
+   ═══════════════════════════════════════════════════════════════ */
+
+.d2h-wrapper {
+  --diff-add:      #00ff41;
+  --diff-add-bg:   rgba(0, 255, 65, 0.08);
+  --diff-add-glow: rgba(0, 255, 65, 0.4);
+  --diff-del:      #ff3366;
+  --diff-del-bg:   rgba(255, 51, 102, 0.08);
+  --diff-del-glow: rgba(255, 51, 102, 0.4);
+
+  background: var(--code-bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  border: 1px solid var(--wire);
+  border-radius: 0;
+}
+
+/* ─── STRUCTURAL OVERRIDES (the layout-critical ones) ──────────
+   Why `!important`:
+     - diff2html's `.d2h-code-side-linenumber{position:absolute}` causes
+       the parent `<td>` to blockify (CSS display computation rule).
+     - `.l3-prose tbody td { padding: 6px 12px; border: 1px solid ... }`
+       leaks in from lightgrid.css. We need our diff cells to stay tight.
+     - The browser source-order tiebreaker favours diff2html's CSS (it
+       loads last via the lazy JS injector). Without `!important`, our
+       structural rules silently lose. */
+.d2h-wrapper .d2h-files-diff {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-height: none;
+  overflow: visible;
+  background: var(--code-bg);
+}
+.d2h-wrapper .d2h-file-side-diff {
+  display: block !important;
+  flex: 1 1 50% !important;
+  width: 50% !important;
+  min-width: 0 !important;          /* allow flex children to shrink */
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: top;
+  border-right: 1px solid var(--wire);
+  background: var(--code-bg);
+  position: relative;
+}
+.d2h-wrapper .d2h-file-side-diff:last-child { border-right: 0; }
+.d2h-wrapper .d2h-code-wrapper {
+  display: block;
+  width: 100%;
+  background: var(--code-bg);
+}
+
+/* Restore proper table layout — kill diff2html's `position:absolute`
+   on line-number cells so the parent `<td>` stops blockifying. */
+.d2h-wrapper .d2h-diff-table {
+  display: table !important;
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0 !important;
+}
+.d2h-wrapper .d2h-diff-table colgroup,
+.d2h-wrapper .d2h-diff-table col {
+  display: table-column-group;
+}
+.d2h-wrapper .d2h-diff-tbody {
+  display: table-row-group !important;
+  background: var(--code-bg);
+}
+.d2h-wrapper .d2h-diff-table tr {
+  display: table-row !important;
+}
+.d2h-wrapper .d2h-diff-table td {
+  display: table-cell !important;
+  vertical-align: top !important;
+  padding: 1px 8px !important;
+  border: 0 !important;             /* defeat .l3-prose tbody td border */
+  border-bottom: 1px solid rgba(26, 26, 48, 0.35) !important;
+  background: var(--code-bg);
+}
+
+/* ─── Top file-list summary (diff2html's "Files changed" header) ──
+   Renders a compact file roster with +/- stats. Re-skinned to match
+   the LIGHTGRID meta-bar (uppercase mono, cyan accents, wire borders).
+
+   IMPORTANT: `.d2h-file-list-wrapper` is a SIBLING of `.d2h-wrapper`
+   inside `.lg-diff-host`, not a child — so the per-file overrides
+   above won't reach it. We scope via `.lg-diff-host` here. */
+.lg-diff-host .d2h-file-list-wrapper {
+  background: var(--panel);
+  border: 1px solid var(--wire);
+  border-radius: 0;
+  margin: 0 0 14px 0;
+  padding: 12px 16px 10px;
+  font-family: var(--font-mono);
+  position: relative;
+  color: var(--dim);
+}
+.lg-diff-host .d2h-file-list-wrapper::before {
+  content: '◢ FILES CHANGED';
+  display: block;
+  color: var(--cyan);
+  font-family: var(--font-head);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-shadow: var(--glow-cyan-subtle);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--wire);
+}
+.lg-diff-host .d2h-file-list-header {
+  display: none !important;        /* hide diff2html's own "Files changed (N) [show|hide]" */
+}
+.lg-diff-host .d2h-file-list-title,
+.lg-diff-host .d2h-file-switch {
+  display: none !important;        /* belt-and-braces if upstream restructures */
+}
+.lg-diff-host .d2h-file-list,
+.lg-diff-host ol.d2h-file-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: block !important;       /* override diff2html's inline display:none toggle */
+}
+.lg-diff-host .d2h-file-list-line {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--wire);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+}
+.lg-diff-host .d2h-file-list-line:last-child { border-bottom: 0; }
+.lg-diff-host .d2h-file-list-line .d2h-file-name-wrapper {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.lg-diff-host .d2h-file-list-line .d2h-icon {
+  color: var(--cyan);
+  fill: currentColor;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.lg-diff-host .d2h-file-list-line .d2h-icon.d2h-changed { color: var(--amber); }
+.lg-diff-host .d2h-file-list-line .d2h-icon.d2h-added   { color: var(--diff-add); }
+.lg-diff-host .d2h-file-list-line .d2h-icon.d2h-deleted { color: var(--diff-del); }
+.lg-diff-host .d2h-file-list-line a.d2h-file-name,
+.lg-diff-host .d2h-file-list-line a {
+  color: var(--text) !important;
+  text-decoration: none !important;
+  border-bottom: 1px dotted transparent !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  transition: color 0.15s, border-bottom-color 0.15s, text-shadow 0.15s;
+  cursor: pointer;
+}
+.lg-diff-host .d2h-file-list-line a:hover {
+  color: var(--cyan) !important;
+  border-bottom-color: var(--cyan) !important;
+  text-shadow: var(--glow-cyan-subtle);
+}
+.lg-diff-host .d2h-file-list-line .d2h-file-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.lg-diff-host .d2h-file-list-line .d2h-lines-added {
+  color: var(--diff-add) !important;
+  background: transparent !important;
+  border: 1px solid rgba(0, 255, 65, 0.4) !important;
+  border-radius: 0 !important;
+  padding: 1px 5px !important;
+  margin: 0 !important;
+  font-family: var(--font-mono);
+  font-size: 10px !important;
+  letter-spacing: 0.06em;
+  text-align: center !important;
+  vertical-align: middle !important;
+  text-shadow: 0 0 4px var(--diff-add-glow);
+}
+.lg-diff-host .d2h-file-list-line .d2h-lines-deleted {
+  color: var(--diff-del) !important;
+  background: transparent !important;
+  border: 1px solid rgba(255, 51, 102, 0.4) !important;
+  border-radius: 0 !important;
+  padding: 1px 5px !important;
+  margin: 0 !important;
+  font-family: var(--font-mono);
+  font-size: 10px !important;
+  letter-spacing: 0.06em;
+  text-align: center !important;
+  vertical-align: middle !important;
+  text-shadow: 0 0 4px var(--diff-del-glow);
+}
+
+/* ─── Per-file diff container ────────────────────────────────── */
+.d2h-wrapper .d2h-file-wrapper,
+.d2h-wrapper .d2h-file-diff {
+  background: var(--code-bg) !important;
+  border: 1px solid var(--wire) !important;
+  border-radius: 0 !important;
+  margin: 0 0 16px 0 !important;
+  overflow: visible;
+  position: relative;
+}
+
+/* ─── File header (path + tag + buttons) ──────────────────────────
+   Cyan path on a panel band. Layout: [icon + path + tag] [spacer]
+   [copy buttons]. The diff2html `<label class="d2h-file-collapse">
+   Viewed</label>` is hidden — it's redundant here and was overlapping
+   our copy buttons. */
+.d2h-wrapper .d2h-file-header {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  background: var(--panel) !important;
+  color: var(--cyan) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 12px !important;
+  letter-spacing: 0.06em !important;
+  padding: 9px 14px !important;
+  border-bottom: 1px solid var(--wire) !important;
+  text-shadow: 0 0 6px rgba(0, 243, 255, 0.25);
+  flex-wrap: nowrap !important;
+  overflow: hidden;
+}
+.d2h-wrapper .d2h-file-header:hover {
+  background: var(--panel-hover) !important;
+}
+/* Hide diff2html's "Viewed" toggle entirely — we don't expose this
+   workflow in LIGHTGRID, and its inline `display:flex` was forcing
+   it into the header flow on top of our copy buttons. */
+.d2h-wrapper .d2h-file-header .d2h-file-collapse,
+.d2h-wrapper .d2h-file-header label.d2h-file-collapse {
+  display: none !important;
+}
+.d2h-wrapper .d2h-file-collapse-input { display: none !important; }
+.d2h-wrapper .d2h-file-name-wrapper {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.d2h-wrapper .d2h-file-name {
+  color: var(--cyan) !important;
+  font-family: var(--font-mono) !important;
+  font-weight: 500;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none !important;
+  border: 0 !important;
+}
+.d2h-wrapper .d2h-file-name:hover {
+  text-shadow: var(--glow-cyan-subtle);
+}
+.d2h-wrapper .d2h-file-name-changed {
+  color: var(--ghost);
+  font-style: italic;
+  font-size: 11px;
+}
+.d2h-wrapper .d2h-icon-wrapper {
+  color: var(--cyan);
+  opacity: 0.7;
+}
+.d2h-wrapper .d2h-icon {
+  fill: currentColor;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.d2h-wrapper .d2h-tag {
+  font-family: var(--font-head) !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  padding: 2px 7px !important;
+  border: 1px solid currentColor !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  margin-left: 4px !important;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.d2h-wrapper .d2h-changed-tag { color: var(--amber) !important; }
+.d2h-wrapper .d2h-moved-tag   { color: var(--violet) !important; }
+.d2h-wrapper .d2h-added-tag   {
+  color: var(--diff-add) !important;
+  text-shadow: 0 0 4px var(--diff-add-glow);
+}
+.d2h-wrapper .d2h-deleted-tag {
+  color: var(--diff-del) !important;
+  text-shadow: 0 0 4px var(--diff-del-glow);
+}
+.d2h-wrapper .d2h-renamed-tag { color: var(--magenta) !important; }
+
+/* ─── Copy buttons (path + diff) — header right edge ────────────
+   Stays visible (no longer hover-hidden) so users can find them.
+   Sits to the right of the path/tag, before the (now-hidden) Viewed
+   label, with explicit gap to prevent overlap regression. */
+.d2h-wrapper .lg-diff-copy-path,
+.d2h-wrapper .lg-diff-copy-hunk {
+  position: static;                 /* override any absolute/transform from older versions */
+  transform: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  background: rgba(0, 243, 255, 0.04);
+  border: 1px solid rgba(0, 243, 255, 0.45);
+  border-radius: 0;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 6px;
+  transition: background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  z-index: 2;
+}
+.d2h-wrapper .d2h-file-header .lg-diff-copy-path { margin-left: auto; }   /* push to right edge */
+.d2h-wrapper .lg-diff-copy-path:hover,
+.d2h-wrapper .lg-diff-copy-hunk:hover {
+  background: rgba(0, 243, 255, 0.12);
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan-subtle);
+  color: var(--cyan);
+}
+.d2h-wrapper .lg-diff-copy-path.lg-diff-copy-ok,
+.d2h-wrapper .lg-diff-copy-hunk.lg-diff-copy-ok {
+  color: var(--diff-add);
+  border-color: var(--diff-add);
+  background: rgba(0, 255, 65, 0.08);
+  box-shadow: 0 0 8px var(--diff-add-glow);
+}
+
+/* Backwards-compat: any leftover diff2html copy button bundles. */
+.d2h-wrapper .d2h-file-header-copy-btn,
+.d2h-wrapper .d2h-file-header .d2h-copy-button {
+  display: none !important;
+}
+
+/* ─── Hunk header (the @@ -1,5 +1,7 @@ band) ───────────────────── */
+.d2h-wrapper .d2h-info,
+.d2h-wrapper td.d2h-info {
+  background: rgba(0, 243, 255, 0.06) !important;
+  color: var(--cyan) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.05em !important;
+  border-top: 1px solid rgba(0, 243, 255, 0.18) !important;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.18) !important;
+  padding: 4px 12px !important;
+  text-shadow: 0 0 6px rgba(0, 243, 255, 0.2);
+}
+.d2h-wrapper .d2h-info .d2h-code-line,
+.d2h-wrapper .d2h-info .d2h-code-side-line {
+  color: var(--cyan) !important;
+  background: transparent !important;
+}
+.d2h-wrapper .d2h-info .d2h-code-line-prefix,
+.d2h-wrapper .d2h-info .d2h-code-line-ctn {
+  color: var(--ghost) !important;
+  background: transparent !important;
+}
+
+/* ─── Line numbers (gutter) ──────────────────────────────────── */
+.d2h-wrapper .d2h-code-linenumber,
+.d2h-wrapper .d2h-code-side-linenumber,
+.d2h-wrapper td.d2h-code-side-linenumber,
+.d2h-wrapper td.d2h-code-linenumber {
+  position: static !important;      /* CRITICAL: kill upstream's `position:absolute` */
+  display: table-cell !important;
+  width: 56px !important;           /* fixed gutter width */
+  min-width: 56px !important;
+  max-width: 56px !important;
+  background: rgba(10, 10, 18, 0.6) !important;
+  color: var(--ghost) !important;
+  border-right: 1px solid var(--wire) !important;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono) !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.02em;
+  padding: 1px 8px !important;
+  text-align: right !important;
+  vertical-align: top !important;
+  user-select: none;
+  cursor: default;
+  direction: ltr !important;        /* upstream sets `direction:rtl`, kills tabular alignment */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.d2h-wrapper .d2h-code-linenumber:hover,
+.d2h-wrapper .d2h-code-side-linenumber:hover {
+  color: var(--cyan) !important;
+  text-shadow: var(--glow-cyan-subtle);
+}
+.d2h-wrapper .d2h-code-line-prefix {
+  color: var(--dim);
+  background: transparent;
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* ─── Code lines (the wrapped `<div>` inside the code `<td>`) ──── */
+/* IMPORTANT whitespace contract: the outer line container must be
+   `white-space: nowrap` (NOT `pre`), because diff2html's HTML is
+   pretty-printed with newlines between the `<span>` children — using
+   `pre` here renders those source-newlines as visible line breaks
+   (every diff row blew up to ~77px high in v1 of this file).
+   The actual code text lives in `.d2h-code-line-ctn` which uses
+   `pre` to preserve the indentation INSIDE the line. */
+.d2h-wrapper .d2h-code-line,
+.d2h-wrapper .d2h-code-side-line {
+  display: block !important;
+  width: auto !important;
+  padding: 0 8px !important;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap !important;
+  user-select: text !important;
+  overflow: visible;
+}
+.d2h-wrapper .d2h-code-line-ctn {
+  display: inline-block !important;
+  width: auto !important;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  white-space: pre !important;
+  word-wrap: normal;
+  user-select: text;
+  vertical-align: baseline;
+}
+
+/* Context-line cells — code on void, dim text. */
+.d2h-wrapper td.d2h-cntx,
+.d2h-wrapper .d2h-cntx {
+  background: var(--code-bg) !important;
+  color: var(--dim) !important;
+}
+.d2h-wrapper .d2h-cntx .d2h-code-line-ctn,
+.d2h-wrapper .d2h-cntx .d2h-code-side-line {
+  color: var(--dim) !important;
+}
+.d2h-wrapper td.d2h-cntx.d2h-code-side-linenumber,
+.d2h-wrapper td.d2h-cntx.d2h-code-linenumber {
+  background: rgba(10, 10, 18, 0.6) !important;
+  color: var(--ghost) !important;
+}
+
+/* ── Additions — matrix green, glow, inset rim ──────────────── */
+.d2h-wrapper td.d2h-ins,
+.d2h-wrapper .d2h-ins {
+  background: var(--diff-add-bg) !important;
+  color: var(--diff-add) !important;
+  box-shadow: inset 2px 0 0 var(--diff-add) !important;
+}
+.d2h-wrapper td.d2h-ins .d2h-code-line-ctn,
+.d2h-wrapper td.d2h-ins .d2h-code-side-line,
+.d2h-wrapper td.d2h-ins .d2h-code-line {
+  color: var(--diff-add) !important;
+  text-shadow: 0 0 4px var(--diff-add-glow);
+  background: transparent !important;
+}
+.d2h-wrapper td.d2h-ins.d2h-code-side-linenumber,
+.d2h-wrapper td.d2h-ins.d2h-code-linenumber {
+  background: rgba(0, 255, 65, 0.10) !important;
+  color: var(--diff-add) !important;
+  text-shadow: 0 0 4px var(--diff-add-glow);
+  border-right-color: rgba(0, 255, 65, 0.25) !important;
+  box-shadow: none !important;
+}
+/* Inline-word emphasis inside an addition (diff2html wraps changed
+   subspans with the `.d2h-change` token). Brighten the glow. */
+.d2h-wrapper td.d2h-ins.d2h-change {
+  background: rgba(0, 255, 65, 0.14) !important;
+  box-shadow: inset 2px 0 0 var(--diff-add) !important;
+}
+.d2h-wrapper .d2h-code-line ins,
+.d2h-wrapper .d2h-code-side-line ins,
+.d2h-wrapper ins.d2h-change {
+  background: rgba(0, 255, 65, 0.30) !important;
+  color: #d4ffe0 !important;
+  border-radius: 1px;
+  padding: 0 1px;
+  text-decoration: none;
+  box-shadow: 0 0 4px var(--diff-add-glow);
+}
+
+/* ── Deletions — neon red, glow, inset rim ──────────────────── */
+.d2h-wrapper td.d2h-del,
+.d2h-wrapper .d2h-del {
+  background: var(--diff-del-bg) !important;
+  color: var(--diff-del) !important;
+  box-shadow: inset 2px 0 0 var(--diff-del) !important;
+}
+.d2h-wrapper td.d2h-del .d2h-code-line-ctn,
+.d2h-wrapper td.d2h-del .d2h-code-side-line,
+.d2h-wrapper td.d2h-del .d2h-code-line {
+  color: var(--diff-del) !important;
+  text-shadow: 0 0 4px var(--diff-del-glow);
+  background: transparent !important;
+}
+.d2h-wrapper td.d2h-del.d2h-code-side-linenumber,
+.d2h-wrapper td.d2h-del.d2h-code-linenumber {
+  background: rgba(255, 51, 102, 0.10) !important;
+  color: var(--diff-del) !important;
+  text-shadow: 0 0 4px var(--diff-del-glow);
+  border-right-color: rgba(255, 51, 102, 0.25) !important;
+  box-shadow: none !important;
+}
+.d2h-wrapper td.d2h-del.d2h-change {
+  background: rgba(255, 51, 102, 0.14) !important;
+  box-shadow: inset 2px 0 0 var(--diff-del) !important;
+}
+.d2h-wrapper .d2h-code-line del,
+.d2h-wrapper .d2h-code-side-line del,
+.d2h-wrapper del.d2h-change {
+  background: rgba(255, 51, 102, 0.30) !important;
+  color: #ffd6e0 !important;
+  border-radius: 1px;
+  padding: 0 1px;
+  text-decoration: none;
+  box-shadow: 0 0 4px var(--diff-del-glow);
+}
+
+/* ── Empty-side placeholder (side-by-side gutter for unmatched lines) */
+.d2h-wrapper td.d2h-emptyplaceholder,
+.d2h-wrapper td.d2h-code-side-emptyplaceholder,
+.d2h-wrapper .d2h-emptyplaceholder,
+.d2h-wrapper .d2h-code-side-emptyplaceholder {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(10, 10, 18, 0.85) 0,
+    rgba(10, 10, 18, 0.85) 6px,
+    rgba(232, 232, 240, 0.04) 6px,
+    rgba(232, 232, 240, 0.04) 7px
+  ) !important;
+  color: transparent !important;
+  border-color: var(--wire) !important;
+  box-shadow: none !important;
+}
+.d2h-wrapper td.d2h-emptyplaceholder.d2h-code-side-linenumber,
+.d2h-wrapper td.d2h-code-side-linenumber.d2h-emptyplaceholder {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(10, 10, 18, 0.95) 0,
+    rgba(10, 10, 18, 0.95) 4px,
+    rgba(232, 232, 240, 0.03) 4px,
+    rgba(232, 232, 240, 0.03) 5px
+  ) !important;
+  color: transparent !important;
+}
+
+/* ── Selection — keep selection visible against the glow ─────── */
+.d2h-wrapper ::selection {
+  background: rgba(0, 243, 255, 0.28);
+  color: var(--text);
+}
+
+/* ── Scrollbars — slim, cyan-tinted, on the side scroll only ── */
+.d2h-wrapper .d2h-file-side-diff::-webkit-scrollbar,
+.d2h-wrapper .d2h-files-diff::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.d2h-wrapper .d2h-file-side-diff::-webkit-scrollbar-track,
+.d2h-wrapper .d2h-files-diff::-webkit-scrollbar-track {
+  background: var(--panel);
+}
+.d2h-wrapper .d2h-file-side-diff::-webkit-scrollbar-thumb,
+.d2h-wrapper .d2h-files-diff::-webkit-scrollbar-thumb {
+  background: rgba(0, 243, 255, 0.25);
+  border-radius: 0;
+}
+.d2h-wrapper .d2h-file-side-diff::-webkit-scrollbar-thumb:hover,
+.d2h-wrapper .d2h-files-diff::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 243, 255, 0.5);
+}
+
+/* ── Empty-state (no diff content / "No changes" message) ──── */
+.d2h-wrapper .d2h-no-changes,
+.d2h-wrapper .d2h-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--ghost);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: var(--code-bg);
+}
+
+/* ── Defeat any colour-scheme variants diff2html might apply
+      (`d2h-light-color-scheme` / `d2h-dark-color-scheme` / `d2h-auto-...`).
+      Our overrides should win regardless of which class diff2html
+      stamps on the wrapper. */
+.d2h-wrapper.d2h-light-color-scheme,
+.d2h-wrapper.d2h-dark-color-scheme,
+.d2h-wrapper.d2h-auto-color-scheme {
+  background: var(--code-bg);
+  color: var(--text);
+}
+
+/* ── Neutralise `.l3-prose` cascade leaks ─────────────────────
+   The diff renders inside the L3 markdown prose container, which
+   styles all `<table>`/`<td>`/`<a>` it finds. Re-anchor under our
+   wrapper so diff2html cells are not subject to those rules. */
+.d2h-wrapper.d2h-wrapper a:not(.d2h-file-name) {
+  border-bottom: 0 !important;
+}
+.l3-prose .d2h-wrapper table,
+.l3-prose .d2h-wrapper .d2h-diff-table {
+  margin: 0 !important;
+}
+.l3-prose .d2h-wrapper tbody td,
+.l3-prose .d2h-wrapper th {
+  border: 0 !important;
+}

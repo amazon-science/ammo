@@ -1,0 +1,28 @@
+{
+  "artifact_dir": "ARTIFACT_DIR",
+  "e2e_gate": {
+    "failing": [],
+    "pass": true,
+    "per_bs_verdicts": [
+      {
+        "batch_size": 1,
+        "speedup": 1.05,
+        "verdict": "PASS"
+      }
+    ],
+    "thresholds": {
+      "catastrophic_regression_pct": 5.0,
+      "min_e2e_improvement_pct": 0.5,
+      "noise_tolerance_pct": 0.5,
+      "pass_floor_speedup": 1.005
+    },
+    "track_verdict": "PASS"
+  },
+  "generated_at": "GENERATED_AT",
+  "inputs": {
+    "e2e_json": "ARTIFACT_DIR/e2e_latency/e2e_latency_results.json"
+  },
+  "status": {
+    "has_e2e": true
+  }
+}

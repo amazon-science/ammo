@@ -1,0 +1,26 @@
+{
+  "model_id": "test/model",
+  "tp": 1,
+  "max_model_len": 4096,
+  "workload": {"input_len": 1024, "output_len": 128, "num_iters": 10},
+  "results": [
+    {
+      "batch_size": 1,
+      "speedup": 1.004016064257028,
+      "improvement_pct": 0.4,
+      "baseline": {
+        "avg_s": 1.0,
+        "prefill_avg_s": 0.9,
+        "decode_avg_s": 0.1,
+        "decode_share_of_e2e": 0.1
+      },
+      "opt": {
+        "avg_s": 0.996,
+        "prefill_avg_s": 0.9,
+        "decode_avg_s": 0.096,
+        "decode_share_of_e2e": 0.09638554216867469
+      }
+    }
+  ],
+  "bench": {"baseline_label": "baseline", "opt_label": "opt"}
+}

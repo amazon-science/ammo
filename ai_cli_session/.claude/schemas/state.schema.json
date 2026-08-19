@@ -1,0 +1,1981 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ammo.campaign.state/v2",
+  "title": "AMMO Campaign State",
+  "description": "Authoritative schema for kernel_opt_artifacts/state.json. Round-centric hierarchy: all mutable pipeline state lives under campaign.rounds[N]. The validation hook blocks non-conforming writes.",
+  "type": "object",
+  "required": [
+    "target",
+    "session_id",
+    "gpu_resources",
+    "campaign"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "e2e_latency_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "avg"
+      ],
+      "properties": {
+        "avg": {
+          "type": "number",
+          "description": "Average latency in seconds"
+        },
+        "p10": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p25": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p50": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p75": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p90": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p99": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "optimization_category": {
+      "type": "string",
+      "enum": [
+        "kernel_replacement",
+        "kernel_fusion",
+        "dispatch_optimization",
+        "custom_kernel",
+        "weight_layout_transform",
+        "compute_graph_pass",
+        "execution_pipeline_restructuring",
+        "communication_strategy",
+        "attention_kv_layout"
+      ],
+      "description": "AMMO optimization-category catalog (v4.1+). Non-exhaustive DESCRIPTOR, not the eligibility gate \u2014 the gate is the principle in SKILL.md NN#8 (authored mechanism logic/structure + profiled bottleneck + measured parity-safe E2E win). Champions self-classify in Phase 0; a novel mechanism that passes the gate but fits no listed class names a new descriptor. The three legacy values (kernel_replacement, kernel_fusion, dispatch_optimization) are RETAINED so paused campaigns resume cleanly: kernel_replacement folds into custom_kernel, dispatch_optimization into execution_pipeline_restructuring. Add-only / monotonic \u2014 never remove a value. See references/optimization-categories.md."
+    }
+  },
+  "properties": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "hardware",
+        "dtype",
+        "tp",
+        "ep",
+        "component"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hardware": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dtype": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tp": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dp": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "ep": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "component": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "session_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Session UUID recorded at campaign start. Enables eval pipeline to extract timing and cost data."
+    },
+    "codex_thread_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Immutable Codex root thread UUID from the trusted hook payload; used for state_5.sqlite lifecycle traversal."
+    },
+    "gpu_resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gpu_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gpu_model": {
+          "type": "string"
+        },
+        "memory_total_gib": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cuda_visible_devices": {
+          "type": "string"
+        }
+      }
+    },
+    "campaign": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "status",
+        "current_round",
+        "current_stage",
+        "config",
+        "rounds"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "enum": [
+            "3.0",
+            "4.0",
+            "4.1",
+            "4.2"
+          ],
+          "description": "Schema version pinning. v4.0 introduces map-based e2e_latency, per_bs_verdict siblings, kernel_speedup split, and additionalProperties locking. v4.1 introduces f_e2e framework and optimization-category taxonomy. v4.2 introduces top_f_e2e_pct/top_addressable_e2e_pct mining metrics (Stage 7 stop check), the contingent_host_spike selection mode with gate_5_2_boundary A/B arithmetic, SKIPPED gate values, and durable implementer/monitor pairing fields."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "paused",
+            "campaign_complete",
+            "campaign_exhausted"
+          ],
+          "description": "Campaign lifecycle status. Terminal values: campaign_complete, campaign_exhausted."
+        },
+        "current_round": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The active round number (1-indexed). campaign.rounds[current_round-1] MUST exist."
+        },
+        "current_stage": {
+          "type": "string",
+          "enum": [
+            "1_baseline",
+            "2_bottleneck_mining",
+            "3_debate",
+            "4_5_parallel_tracks",
+            "6_integration",
+            "7_campaign_eval",
+            "7b_report"
+          ],
+          "description": "Current pipeline stage. Terminal pseudo-stages eliminated: when campaign.status is terminal, current_stage stays at whatever stage was last active."
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "min_e2e_improvement_pct",
+            "noise_tolerance_pct",
+            "catastrophic_regression_pct"
+          ],
+          "properties": {
+            "min_e2e_improvement_pct": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.5,
+              "description": "PASS floor: per-BS speedup must clear 1 + max(this, noise_tolerance_pct)/100. Keep >= noise_tolerance_pct so the minimum win never sits inside the declared noise band."
+            },
+            "noise_tolerance_pct": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.5
+            },
+            "catastrophic_regression_pct": {
+              "type": "number",
+              "minimum": 0,
+              "default": 5.0
+            },
+            "debate_elimination_score_floor": {
+              "type": "number",
+              "minimum": 0,
+              "default": 5.0,
+              "description": "LEGACY (superseded by EV ranking): weighted-total floor for eliminating a debate candidate. Under EV scoring the elimination floor is EV_pct < min_e2e_improvement_pct (see references/debate-scoring-rubric.md \u00a7 Winner Selection Rules). Retained for backward compatibility with pre-EV campaigns."
+            }
+          }
+        },
+        "cumulative_speedup_vs_round1": {
+          "type": "number",
+          "description": "Deprecated (v3 compat). Final integrated E2E latency of Round 1 baseline \u00f7 current integrated latency. In v4.0 this is computed at read time by the backend normalizer."
+        },
+        "round_1_baseline_latency_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "description": "Deprecated (v3 compat). Anchor baseline for cumulative_speedup_vs_round1: round 1's E2E latency in seconds. In v4.0 derived from rounds[0].baseline.e2e_latency[smallest_bs].avg."
+        },
+        "shipped_optimizations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "op_id",
+              "round",
+              "classification"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "classification": {
+                "type": "string"
+              },
+              "diluted": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "description": "List of shipped optimizations as {op_id, round, classification}. Legacy string-array form is not allowed."
+        },
+        "agent_costs": {
+          "type": "array",
+          "description": "Auto-populated by eval pipeline from session logs."
+        },
+        "rounds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "round_id",
+              "status",
+              "baseline",
+              "bottleneck_mining",
+              "debate",
+              "parallel_tracks",
+              "integration",
+              "campaign_eval"
+            ],
+            "properties": {
+              "round_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "IN_PROGRESS",
+                  "completed",
+                  "EXHAUSTED",
+                  "SHIPPED",
+                  "FAILED"
+                ]
+              },
+              "team_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "profiling_baseline_path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mining_invalidated": {
+                "type": "boolean",
+                "description": "Optional. MUST be boolean true to take effect \u2014 the engine routes the next round to 2_bottleneck_mining (re-mine) instead of 3_debate ONLY when this is exactly boolean true (ammo_state.advance uses `is True`). A string or any non-true value is ignored. Set only when the diagnosis (not just the fix) was wrong; put the justification in mining_invalidated_reason."
+              },
+              "mining_invalidated_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Optional human-readable justification for mining_invalidated=true. Companion to mining_invalidated; carries the reason text (the boolean carries the trigger)."
+              },
+              "baseline": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "started_at",
+                  "completed_at"
+                ],
+                "properties": {
+                  "started_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "completed_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "e2e_latency": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "$ref": "#/$defs/e2e_latency_entry"
+                    }
+                  },
+                  "per_bs_verdict": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "type": "string",
+                      "enum": [
+                        "PASS",
+                        "NOISE",
+                        "REGRESSED",
+                        "CATASTROPHIC"
+                      ]
+                    }
+                  }
+                }
+              },
+              "bottleneck_mining": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "started_at",
+                  "completed_at"
+                ],
+                "properties": {
+                  "started_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "completed_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "top_bottleneck_share_pct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "top_component": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Name of the top bottleneck component identified in mining (e.g., 'fused_moe', 'attention_decode'). Written by orchestrator after T2 completes by parsing the structured table in bottleneck_analysis.md."
+                  },
+                  "top_f_decode_pct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "f_decode share (% of decode wall time) of the top bottleneck component. Source: bottleneck_analysis.md structured table."
+                  },
+                  "amdahl_ceiling": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Amdahl ceiling (max E2E improvement %) for the top bottleneck assuming infinite kernel speedup. Computed as f_e2e \u00d7 100. Written by orchestrator after T2."
+                  },
+                  "decode_frac": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Fraction of total E2E spent in the decode phase, in [0, 1]. Drives the DECODE/PREFILL phase bar + 'decode frac' stat in the L2 mining tooltip. Source: bottleneck_analysis.md profile summary."
+                  },
+                  "component_breakdown": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "description": "Top-N component shares (sorted descending by pct) for the L2 mining tooltip's multi-row breakdown table. Source: bottleneck_analysis.md structured table \u2014 same rows as the markdown table, parsed into objects.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "name",
+                        "pct"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "pct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100,
+                          "description": "Component share as a PERCENT in [0, 100], NOT a decimal fraction. The orchestrator must multiply f_e2e (e.g. 0.534) by 100 before writing. Picking the wrong column from bottleneck_analysis.md (e.g. f_e2e instead of decode_share %) writes a valid-but-mis-scaled value the FE will render as a near-zero bar."
+                        }
+                      }
+                    }
+                  },
+                  "top_f_e2e_pct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "f_e2e share (% of total E2E wall time) of the top bottleneck component: f_e2e = f_decode x decode_busy x decode_share_of_e2e. Written by orchestrator after T2 by parsing the Workload Dilution table in bottleneck_analysis.md."
+                  },
+                  "top_addressable_e2e_pct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Largest measured f_e2e x removable_fraction across non-overlapping slices, as a % of total E2E. This is the Stage 7 stop check input: the campaign stops iff this value is below campaign.config.min_e2e_improvement_pct. Written by orchestrator after T2."
+                  }
+                },
+                "$comment": "Enrichment non-null enforcement is deliberately NOT a schema allOf: an unconditional post-completion requirement rejected EVERY subsequent state write once one round lacked the fields (deadlock on legacy-round resume). The engine (ammo_state.py gate_violation) enforces non-null at the ROUND-ADVANCE write instead: advancing the current round past 2_bottleneck_mining with any of {top_bottleneck_share_pct, top_component, top_f_decode_pct, amdahl_ceiling, decode_frac, component_breakdown} still null is blocked; all other writes pass."
+              },
+              "debate": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "started_at",
+                  "completed_at",
+                  "candidates",
+                  "rounds_completed",
+                  "max_rounds",
+                  "selected_winners"
+                ],
+                "properties": {
+                  "started_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "completed_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "candidates": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "op_id"
+                          ],
+                          "properties": {
+                            "op_id": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "rounds_completed": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "max_rounds": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "selected_winners": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "selection_rationale": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "proposal_count": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "description": "Total number of proposal markdown files emitted in rounds/{N}/debate/proposals/. Written by orchestrator after T7 (debate winner selection)."
+                  },
+                  "rationale_count": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "description": "Total number of debate rationale files (arguments + critiques + rebuttals) emitted across the debate phase. Written by orchestrator after T7."
+                  },
+                  "scoreboard": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "Final debate scoreboard keyed by op_id with score breakdown per candidate. Free-form object \u2014 schema is intentionally loose because the rubric evolves. Written by orchestrator after T7."
+                  },
+                  "champions_count": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "description": "Number of champion agents that participated in this debate round (typically 2-4). Written by orchestrator after T7."
+                  },
+                  "winners": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Mirror of selected_winners as a top-level field for FE convenience. Written by orchestrator after T7. May duplicate selected_winners; FE should prefer this field for L2 rendering."
+                  },
+                  "result": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Short human-readable summary of the debate outcome (e.g., '2 winners selected: OP-001 (lossless), OP-002 (quant)'). Written by orchestrator after T7."
+                  },
+                  "selected_candidates": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "description": "Authoritative cross-agent contract (array \u2014 debate typically selects 2-4 winners). Moderator writes this; ammo-impl-champion spawned per op_id reads the entry whose op_id matches its assigned track, BEFORE any summary.md. summary.md is a lead-authored human view of this array; on disagreement state.json wins. op_id values here must match entries in selected_winners above.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "op_id",
+                        "track_assignment",
+                        "score_breakdown",
+                        "stage_4_validation_obligations",
+                        "cited_evidence",
+                        "proposal_file"
+                      ],
+                      "properties": {
+                        "op_id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Short display name minted with the op_id: 2-4 plain words describing the mechanism (e.g. 'fused rmsnorm quant'). The op_id stays the key; the name is for prose and summaries. Optional for pre-4.2 records."
+                        },
+                        "proposal_file": {
+                          "type": "string",
+                          "description": "Path relative to artifact_dir of the winning proposal file, e.g. rounds/{N}/debate/proposals/{champion_id}_proposal.md. Written by the lead at T7."
+                        },
+                        "track_assignment": {
+                          "type": "string",
+                          "enum": [
+                            "lossless",
+                            "quant",
+                            "structural"
+                          ]
+                        },
+                        "score_breakdown": {
+                          "type": "object",
+                          "required": [
+                            "feasibility",
+                            "evidence_tier",
+                            "expected_e2e_pct",
+                            "weighted_total"
+                          ],
+                          "properties": {
+                            "feasibility": {
+                              "type": "number"
+                            },
+                            "evidence_tier": {
+                              "type": "string",
+                              "enum": [
+                                "tier_1",
+                                "tier_2",
+                                "tier_3"
+                              ]
+                            },
+                            "expected_e2e_pct": {
+                              "type": "number"
+                            },
+                            "weighted_total": {
+                              "type": "number"
+                            },
+                            "evidence_scope": {
+                              "type": "string",
+                              "enum": [
+                                "bound",
+                                "proxy",
+                                "production_boundary",
+                                "clean_e2e"
+                              ],
+                              "description": "Optional. Where the projected magnitude was measured (references/debate-rules.md \u00a7 Evidence-Scope Ladder). Out of required[] for back-compat: pre-4.2 selected_candidates omit it. A newly selected candidate with evidence_scope=='proxy' is a gate_violation."
+                            }
+                          }
+                        },
+                        "stage_4_validation_obligations": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "roofline_check",
+                              "cuda_graph_check",
+                              "noise_tolerance_check",
+                              "crossover_probe",
+                              "numerics_sweep",
+                              "activation_range_check",
+                              "production_boundary_spike"
+                            ]
+                          }
+                        },
+                        "cited_evidence": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "description": "file:line or artifact path references."
+                        },
+                        "category": {
+                          "anyOf": [
+                            {
+                              "type": "null"
+                            },
+                            {
+                              "$ref": "#/$defs/optimization_category"
+                            }
+                          ],
+                          "description": "Optional in v4.0; required for v4.1+ campaigns. Champion's self-declared optimization category \u2014 drives per-category projection formula and Stage 4/5 validation routing."
+                        },
+                        "projected_e2e_improvement_pct": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "description": "Champion's projected E2E improvement pct using the per-category projection formula (see references/optimization-categories.md). Stage 5 reads this to compute projected-vs-realized ratio. v4.1+."
+                        },
+                        "selection_mode": {
+                          "type": "string",
+                          "enum": [
+                            "ordinary",
+                            "contingent_host_spike"
+                          ],
+                          "description": "How the candidate won its slot. 'ordinary' = admissible projected_e2e_improvement_pct >= floor, ranked by EV. 'contingent_host_spike' = host-only mechanism selected on a measured host-slice ceiling (host_slice_ceiling_pct) with no admissible magnitude yet; at most one per round; EV/projection fields remain zero and its first Gate 5.2 run is the production-boundary spike."
+                        },
+                        "host_slice_ceiling_pct": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "description": "contingent_host_spike only: the measured production host-slice ceiling (% of E2E) that justified selection. A ceiling, never a projection \u2014 supplies no EV."
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "parallel_tracks": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "started_at",
+                  "completed_at",
+                  "tracks"
+                ],
+                "properties": {
+                  "started_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "completed_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "tracks": {
+                    "type": "object",
+                    "description": "Per-track state keyed by op_id. Updated incrementally as each gate result appears.",
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "IN_PROGRESS",
+                            "PASS",
+                            "GATING_REQUIRED",
+                            "GATED_PASS",
+                            "FAIL",
+                            "GPU_BLOCKED"
+                          ]
+                        },
+                        "verdict": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "PASS",
+                            "GATING_REQUIRED",
+                            "GATED_PASS",
+                            "FAIL",
+                            null
+                          ]
+                        },
+                        "classification": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "lossless",
+                            "lossy",
+                            null
+                          ]
+                        },
+                        "diluted": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "correctness": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "kernel_speedup": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "kernel_speedup_variants": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        },
+                        "e2e_speedup": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "kernel_speedup_warm": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "kernel_speedup_cold": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "per_bs_verdict": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {
+                            "type": "string",
+                            "enum": [
+                              "PASS",
+                              "NOISE",
+                              "REGRESSED",
+                              "CATASTROPHIC"
+                            ]
+                          }
+                        },
+                        "e2e_latency_opt": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {
+                            "$ref": "#/$defs/e2e_latency_entry"
+                          }
+                        },
+                        "e2e_amdahl_prediction_pp": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "gate_5_1a": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "PASS",
+                            "FAIL",
+                            "SKIPPED",
+                            null
+                          ]
+                        },
+                        "gate_5_2": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "PASS",
+                            "RETRY_WITH_CONTINGENCY",
+                            "SKIPPED",
+                            "FAIL",
+                            null
+                          ]
+                        },
+                        "gate_5_1a_metrics": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Numeric metrics from Gate 5.1a (kernel correctness). Written by orchestrator after gate 5.1a passes by reading rounds/{N}/tracks/{op_id}/validator_tests/gate_5_1a_results.json. Replaces the deprecated .metrics.json sidecar.",
+                          "properties": {
+                            "overall": {
+                              "type": "string",
+                              "description": "PASS/FAIL summary copied from gate_5_1a_results.json"
+                            },
+                            "max_abs_err": {
+                              "type": "number",
+                              "description": "Maximum absolute error observed across all tested shapes"
+                            },
+                            "shapes_tested": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of shape configurations tested"
+                            }
+                          }
+                        },
+                        "gate_5_2_metrics": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Numeric metrics from Gate 5.2 (kernel speedup benchmark). Written by orchestrator after gate 5.2 passes by reading rounds/{N}/tracks/{op_id}/validator_tests/gate_5_2_results.json. Replaces the deprecated .metrics.json sidecar.",
+                          "properties": {
+                            "weighted_speedup_cold": {
+                              "type": "number",
+                              "description": "Workload-weighted geometric mean speedup, cold-cache"
+                            },
+                            "weighted_speedup_warm": {
+                              "type": "number",
+                              "description": "Workload-weighted geometric mean speedup, warm-cache"
+                            },
+                            "shapes_tested": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of shape configurations benchmarked"
+                            }
+                          }
+                        },
+                        "gating": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "mechanism": {
+                              "type": "string"
+                            },
+                            "env_var": {
+                              "type": "string"
+                            },
+                            "dispatch_condition": {
+                              "type": "string"
+                            },
+                            "crossover_threshold_bs": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "crossover_probing": {
+                              "type": [
+                                "object",
+                                "null"
+                              ],
+                              "properties": {
+                                "probed_points": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "predicted_bs": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ]
+                                },
+                                "confirmed_bs": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ]
+                                },
+                                "time_minutes": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "converged": {
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                }
+                              }
+                            },
+                            "pre_gating_results": {
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "post_gating_results": {
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "regressing_bs": {
+                              "type": [
+                                "array",
+                                "null"
+                              ],
+                              "items": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        },
+                        "worktree_branch": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "commit_sha": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "fail_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "validation_results_path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "remediation_items_status": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "gate_5_1a_skip_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Populated when gate_5_1a is SKIPPED: why the kernel-level correctness gate does not apply (e.g. host-only mechanism with no kernel boundary)."
+                        },
+                        "gate_5_2_skip_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Populated when gate_5_2 is SKIPPED: why the mechanism-impact gate does not apply."
+                        },
+                        "branch": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Git branch name of the track worktree."
+                        },
+                        "worktree_path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Absolute path of the track's isolated worktree."
+                        },
+                        "evidence_path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Path (relative to artifact_dir) of the track's evidence.json."
+                        },
+                        "kill_criteria_results": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "description": "T8d kill-criteria evaluation results keyed by criterion name."
+                        },
+                        "completed_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time",
+                          "description": "Timestamp when the track reached terminal status."
+                        },
+                        "implementer_agent": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Durable pairing evidence: name of the implementer agent that owns this track."
+                        },
+                        "implementer_rollout_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Durable pairing evidence: rollout/thread id of the implementer agent."
+                        },
+                        "monitor_agent": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Durable pairing evidence: name of the paired transcript monitor."
+                        },
+                        "monitor_evidence_path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Path of the monitor's observation log for this track."
+                        },
+                        "monitor_offsets_path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Path of the monitor's incremental transcript-offset state file."
+                        },
+                        "monitor_summary_path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Path of the monitor's terminal DA-MONITOR SUMMARY artifact."
+                        },
+                        "gate_5_2_boundary": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "description": "contingent_host_spike tracks: the production-boundary A/B arithmetic recorded by the first Gate 5.2 run. e2e_equivalent_improvement_pct = 100 x (baseline_duration_us - optimized_duration_us) x occurrence_count / baseline_e2e_us; compared against campaign_floor_pct (= campaign.config.min_e2e_improvement_pct).",
+                          "properties": {
+                            "baseline_duration_us": {
+                              "type": "number"
+                            },
+                            "optimized_duration_us": {
+                              "type": "number"
+                            },
+                            "occurrence_count": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "baseline_e2e_us": {
+                              "type": "number"
+                            },
+                            "e2e_equivalent_improvement_pct": {
+                              "type": "number"
+                            },
+                            "campaign_floor_pct": {
+                              "type": "number"
+                            },
+                            "meets_floor": {
+                              "type": "boolean"
+                            },
+                            "clock": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Boundary-appropriate clock used (host monotonic / NVTX+Nsys for CPU intervals; CUDA events for GPU intervals)."
+                            }
+                          },
+                          "required": [
+                            "baseline_duration_us",
+                            "optimized_duration_us",
+                            "occurrence_count",
+                            "baseline_e2e_us",
+                            "e2e_equivalent_improvement_pct",
+                            "campaign_floor_pct",
+                            "meets_floor"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "allOf": [
+                        {
+                          "if": {
+                            "properties": {
+                              "diluted": {
+                                "const": true
+                              }
+                            },
+                            "required": [
+                              "diluted"
+                            ]
+                          },
+                          "then": {
+                            "properties": {
+                              "status": {
+                                "const": "PASS"
+                              }
+                            },
+                            "required": [
+                              "status"
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    "propertyNames": {
+                      "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                  }
+                }
+              },
+              "integration": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "started_at",
+                  "completed_at",
+                  "status"
+                ],
+                "properties": {
+                  "started_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "completed_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "in_progress",
+                      "validated",
+                      "single_pass",
+                      "combined",
+                      "gated_pass",
+                      "completed",
+                      "exhausted",
+                      "failed",
+                      "skipped"
+                    ]
+                  },
+                  "passing_candidates": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "op_id"
+                          ],
+                          "properties": {
+                            "op_id": {
+                              "type": "string"
+                            },
+                            "verdict": {
+                              "type": "string"
+                            },
+                            "e2e_speedup": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "files_changed": {
+                              "type": [
+                                "array",
+                                "null"
+                              ]
+                            },
+                            "gating": {
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "failed_candidates": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "selected_candidates": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "conflict_analysis": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string"
+                          },
+                          "overlapping_pairs": {
+                            "type": "array"
+                          },
+                          "combinable_pairs": {
+                            "type": "array"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "combined_patch_branch": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "combined_e2e_result": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "speedup_x": {
+                            "type": "number"
+                          },
+                          "measured": {
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "amdahl_prediction_cold_pp": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "amdahl_prediction_warm_pp": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "e2e_latency_combined": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "$ref": "#/$defs/e2e_latency_entry"
+                    }
+                  },
+                  "per_bs_verdict": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "type": "string",
+                      "enum": [
+                        "PASS",
+                        "NOISE",
+                        "REGRESSED",
+                        "CATASTROPHIC"
+                      ]
+                    }
+                  },
+                  "commit_sha": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "final_decision": {
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "action": {
+                            "type": "string"
+                          },
+                          "branch": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "included_candidates": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "total_e2e_speedup": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "resolver_invoked": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "resolver_outcome": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "conflicting_tracks": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "campaign_eval": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "started_at",
+                  "completed_at"
+                ],
+                "properties": {
+                  "started_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "completed_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                }
+              },
+              "audit": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "description": "Adversarial auditor verdicts per gate. Presence of the key (even empty {}) activates the audit gate in hooks; legacy campaigns without this key bypass enforcement.",
+                "properties": {
+                  "stage_1": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "passed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "started_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Stamped mechanically by the auditor-spawn hook (claude: ammo-audit-start-stamp.sh; codex: post_tool_use_guard.py) when the ammo-auditor is dispatched for this gate. The lead never writes it by hand. For schema_version 4.2 and later, a gate that carries passed_at without started_at fails state validation; backfill it with ammo_state.py audit-started."
+                      },
+                      "cycle": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1,
+                        "description": "Audit cycle number taken from the auditor dispatch prompt. A re-audit of the same gate increments it."
+                      },
+                      "verdict_file": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "stage_2": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Stage 2 (bottleneck mining) audit gate. Fires after mining completes (schema v4.1+ only). Four-phase audit checks 9 mining-specific invariants (dilution table, f_e2e budget, etc.).",
+                    "properties": {
+                      "passed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "started_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Stamped mechanically by the auditor-spawn hook (claude: ammo-audit-start-stamp.sh; codex: post_tool_use_guard.py) when the ammo-auditor is dispatched for this gate. The lead never writes it by hand. For schema_version 4.2 and later, a gate that carries passed_at without started_at fails state validation; backfill it with ammo_state.py audit-started."
+                      },
+                      "cycle": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1,
+                        "description": "Audit cycle number taken from the auditor dispatch prompt. A re-audit of the same gate increments it."
+                      },
+                      "verdict_file": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "stage_45": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "passed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "started_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Stamped mechanically by the auditor-spawn hook (claude: ammo-audit-start-stamp.sh; codex: post_tool_use_guard.py) when the ammo-auditor is dispatched for this gate. The lead never writes it by hand. For schema_version 4.2 and later, a gate that carries passed_at without started_at fails state validation; backfill it with ammo_state.py audit-started."
+                      },
+                      "cycle": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1,
+                        "description": "Audit cycle number taken from the auditor dispatch prompt. A re-audit of the same gate increments it."
+                      },
+                      "verdict_file": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "stage_6": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Deprecated \u2014 kept for backward compat with pre-consolidation campaigns. New campaigns use stage_67.",
+                    "properties": {
+                      "passed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "started_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Stamped mechanically by the auditor-spawn hook (claude: ammo-audit-start-stamp.sh; codex: post_tool_use_guard.py) when the ammo-auditor is dispatched for this gate. The lead never writes it by hand. For schema_version 4.2 and later, a gate that carries passed_at without started_at fails state validation; backfill it with ammo_state.py audit-started."
+                      },
+                      "cycle": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1,
+                        "description": "Audit cycle number taken from the auditor dispatch prompt. A re-audit of the same gate increments it."
+                      },
+                      "verdict_file": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "stage_7": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Deprecated \u2014 kept for backward compat with pre-consolidation campaigns. New campaigns use stage_67.",
+                    "properties": {
+                      "passed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "started_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Stamped mechanically by the auditor-spawn hook (claude: ammo-audit-start-stamp.sh; codex: post_tool_use_guard.py) when the ammo-auditor is dispatched for this gate. The lead never writes it by hand. For schema_version 4.2 and later, a gate that carries passed_at without started_at fails state validation; backfill it with ammo_state.py audit-started."
+                      },
+                      "cycle": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1,
+                        "description": "Audit cycle number taken from the auditor dispatch prompt. A re-audit of the same gate increments it."
+                      },
+                      "verdict_file": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "stage_67": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Consolidated S6+S7 audit gate. Fires after SHIP + env promotion + golden-refs capture, or after EXHAUSTED status set. Four-phase audit (inventory, reconstruction, checklist, reconciliation). Checks 22 stage-specific invariants across two delegate clusters (Cluster 1: 13 integration items, Cluster 2: 9 post-SHIP items).",
+                    "properties": {
+                      "passed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "started_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Stamped mechanically by the auditor-spawn hook (claude: ammo-audit-start-stamp.sh; codex: post_tool_use_guard.py) when the ammo-auditor is dispatched for this gate. The lead never writes it by hand. For schema_version 4.2 and later, a gate that carries passed_at without started_at fails state validation; backfill it with ammo_state.py audit-started."
+                      },
+                      "cycle": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1,
+                        "description": "Audit cycle number taken from the auditor dispatch prompt. A re-audit of the same gate increments it."
+                      },
+                      "verdict_file": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "auto_pass": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ],
+                        "description": "DEPRECATED \u2014 never set on new campaigns; legacy campaigns may have it but new rounds do not."
+                      }
+                    }
+                  }
+                }
+              },
+              "shipped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "dropped": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cumulative_speedup_after": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "combined_e2e_speedup_x": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "combined_e2e_delta_pp": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "round_summary": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "diluted_tracks": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "op_id": {
+                      "type": "string"
+                    },
+                    "tpot_improvement_pct": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "decode_share_of_e2e": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "exhausted_technologies": {
+                "type": "array",
+                "description": "Structured exhaustion entries appended when a round EXHAUSTED. Champions filter by applies_to_component and applies_to_shape_bucket. Replaces free-form exhaustion_note prose \u2014 no free-form reason-slot.",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "technology_class",
+                    "failure_mode",
+                    "evidence_refs"
+                  ],
+                  "properties": {
+                    "technology_class": {
+                      "type": "string",
+                      "description": "e.g., triton_fused_moe, cutlass_gemm_hopper, cutedsl_persistent, cuda_cpp_wgmma, library_flashinfer. Closed enum \u2014 the PR #1b implementation scans corpus for values and proposes the final set."
+                    },
+                    "failure_mode": {
+                      "type": "string",
+                      "enum": [
+                        "regs_over_wall",
+                        "cutlass_api_unavailable",
+                        "numerics_divergence",
+                        "no_measurable_speedup",
+                        "compile_failure",
+                        "correctness_fail",
+                        "shape_coverage_gap",
+                        "bw_regression",
+                        "library_not_found",
+                        "cuda_graph_incompatible",
+                        "other"
+                      ]
+                    },
+                    "applies_to_component": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Null means applies to all components. Otherwise names a specific component class (e.g., fused_moe, attention, rmsnorm)."
+                    },
+                    "applies_to_shape_bucket": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Null means applies to all shape buckets. Otherwise names a bucket (e.g., bs_le_8, bs_ge_32)."
+                    },
+                    "evidence_refs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "description": "file:line or artifact path citations. NOT prose \u2014 points at primary evidence."
+                    },
+                    "expires_after_reprofile": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "auditor_escalation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Set when the audit fix loop exhausts 3 cycles. scope is either the array of quarantined track op_ids (track-scoped: campaign continues on unaffected work) or the literal string 'campaign' (campaign-scoped: status goes to paused).",
+          "properties": {
+            "stage": {
+              "type": "string"
+            },
+            "round": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "reason": {
+              "type": "string"
+            },
+            "verdict_files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "scope": {
+              "oneOf": [
+                {
+                  "const": "campaign"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "resumable_task": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "stage",
+            "round",
+            "reason",
+            "scope"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

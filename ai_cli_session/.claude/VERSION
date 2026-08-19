@@ -1,0 +1,292 @@
+version: 1.18.1
+
+## How changelog entries are written
+
+This changelog is read by the dashboard (click the version badge) and is written
+for the person running AMMO campaigns — not for AMMO's maintainers. Every entry
+answers one question: what changed for me? A new capability, something that got
+faster or more reliable, a bug I might have hit, or a dependency / model / GPU
+change that affects what my sessions run on.
+
+Two tiers per entry:
+
+- Highlights — top-level "- " bullets. Plain language, user impact first. These
+  are the only lines the dashboard shows.
+- Details — indented ("  - ") sub-bullets beneath a highlight. File paths, test
+  counts, schema internals, and other engineering specifics live here for
+  maintainers. The dashboard parser skips indented lines, so details never
+  appear in the UI.
+
+Start each highlight with one tag. Use plain text — the UI shows tags literally,
+so do NOT use markdown (no "**Fix**"):
+
+- New — a capability you can now use.
+- Improved — existing behavior is faster, more accurate, or more reliable.
+- Fixed — something that was broken now works.
+- Changed — a default or behavior changed that you should know about. For a
+  breaking change, lead with Changed and state the migration.
+- Updated — a dependency, model, or GPU bump that affects what sessions run on.
+
+Drop anything a campaign operator would never notice (pure refactors, doc edits,
+test-only changes, internal renames) from the highlights — demote it to a detail
+line or leave it out. If a release is entirely internal, write one honest
+highlight describing the net effect (e.g. "more consistent across models").
+
+When you cut a release, add its block at the top of "## Changelog" below, newest
+first, and bump the "version:" line at the top of this file. Use a real date.
+Example shape — the version header is indented here ONLY so this example is not
+parsed as a real changelog entry; real entries start at column 0:
+
+    ### 1.13.0 (2026-06-15)
+    - New — One-line description of the capability.
+      - Engineering detail for maintainers (not shown in the UI).
+
+## Changelog
+
+### 1.18.1 (2026-08-12)
+- Updated — Debate and implementation champions now run Claude Opus 5 (was Claude Fable 5), so the default configuration works with any Anthropic API key. Every model pin is documented and user-changeable; see docs/AMMO_DEEP_DIVE.md "Which Model Runs Which Agent".
+  - `agents/ammo-champion.md` and `agents/ammo-impl-champion.md` model → `opus`; `models.json` roster updated in the same edit; `fable` alias removed.
+
+### 1.18.0 (2026-07-29)
+- New — Mining tables are now generated, not hand-written: `scripts/mine_trace.py` computes every number in the Workload Dilution and Top Components tables directly from the nsys sqlite traces and emits `rounds/{N}/mining/mined.json` + `tables.md`. The researcher authors the config (segmentation policy, family labels) and writes prose around the generated tables. This removes the transcription-drift class that cost one campaign six audit cycles.
+  - Interval-union busy (never sums concurrent kernels), wall-denominated decode share derived from `decode_avg_s / avg_s` (never a stored field), exhaustive symbol→family partition with residual disclosure, step-count fallback ladder with recorded source, FATAL on out-of-bounds decode_busy or non-exhaustive partition. Reproduces the published qwen3.5-4B round-1 tables exactly. `ammo_state.py` enrichment reads mined.json first (markdown parse is the fallback); audit-invariants' phase-accounting duties collapse from recompute-the-arithmetic to verify-the-inputs.
+- New — `scripts/preflight_vllm_api.py` checks every vLLM symbol the sweep couples to (GPU-free, import+introspection) so a vLLM upgrade fails loudly at campaign start instead of silently degrading measurements mid-round. The sweep also stamps `vllm_version` into results, warns on cross-version baseline imports, refuses cross-method throughput comparisons, and derives the nsys trace preset from target.json hardware.
+- Changed — Both variants now render from one canonical source: `ai_cli_session/_ammo_shared/` (61 files) + `scripts/render_ammo_variants.py`, with a sha256 parity test. Twin drift is now a test failure, not a silent divergence.
+  - gpu_reservation superset upstreamed (child-reservation reaping — fixes a Claude-variant GPU leak on dead subagents); one shared state.schema.json (optional `codex_thread_id`); inert model frontmatter stripped from codex agent files.
+- Fixed — Blocking hooks that could be bypassed now actually block: an inspection prefix no longer disables the pretool guard's hard blocks (per-segment classification via shared `hook_cmd_classify.py`), path-qualified/nested pip installs are caught, subagents can no longer rewrite `skills/ammo/scripts/` or `schemas/` (the Mechanical Authorities), the audit-phase2 Stop guard fires (marker-name mismatch fixed), and `reconcile_track_state.py --write` goes through state validation.
+  - `_ammo_is_lead.sh` L4 fail-open inverted; env-default-guard broadened to any truthy-default `VLLM_*` gating flag with an explicit infra allowlist; every fix landed with a red→green bypass harness case.
+- Fixed — Compaction checkpoints survive real summaries: precompact/postcompact build JSON via jq instead of shell interpolation (a multi-line or quoted round summary no longer corrupts the checkpoint). Hook timeouts corrected to seconds.
+- New — One machine-readable `scripts/artifact_layout.json` (45 slots) now feeds both variants' layout-warn hooks; the 4 known false-warn paths (evidence.json, validation_summary.json, diff.patch, post_ship_profiling) are fixed and a parity test pins manifest↔doc agreement.
+- New — `ammo_state.py ingest-baseline` reads the sweep's e2e_latency_results.json straight into state.json through the validated write path, removing the last hand-retyped numbers on the Stage-1 critical path. Gate enrichment walks the schema contract names; per-BS gate reconciliation replaces the single-row guard; debate EV-identity and tier-cap checks run mechanically.
+- Changed — `collect_env.py` deleted (produced zero env.json across 209 archived campaigns); docs no longer assert the removed tmux deny rule; codex session downloads now strip `.codex/` and `AGENTS.md` (sanitization gap); Dockerfile template-copy depth fixed; `models.json` is the single model roster with an agreement test; the internal intent map gained a `file` field on all 162 entries and a bidirectional closure test so it cannot silently rot.
+
+### 1.17.0 (2026-07-28)
+- Changed — Full durability pass over the skill: every rule now has exactly one owner, and ~400 lines of retired-but-still-present code are gone. The retired multi-launch sweep subsystem (`--num-launches`) is deleted — it was unreachable in production and its aggregate path could mix cross-launch and last-launch numbers in one row.
+  - Sweep: `_aggregate_launches` phase block, `_compute_noise_flag`, launch flags, and the duplicated `_harvest_request_metrics` copy removed (vLLM metrics field names now exist in exactly one place); legacy `aggregate.mean_latency` artifacts still read. `test_sweep_multi_launch.py` retired; `validation-defaults.md` multi-launch prose removed. Both variants byte-identical.
+- Fixed — The state engine's status sets are now read from `transitions.json` instead of four hardcoded copies, closing the exact mechanism of the 1.15.x gated_pass bug. Dead `edge_nudges`/`enrich_field_maps` keys deleted.
+  - `ammo_state.py` reads `track_passing_statuses`/`integration_terminal_statuses`/`integration_ship_statuses`/`track_terminal_statuses` from `transitions.json` (KeyError if missing, no fallback literals); `test_status_set_sync.py` asserts no residual hardcoded status literals. Stale "Non-Negotiable #10/#7" citations repointed to their live owner docs; the guard test's glob widened to `scripts/` and `tests/agents/` so dangling authority pointers can't hide there again.
+- Fixed — Wrong facts agents act on: the Inductor pass-name roster (2 of 4 classes don't exist in live vLLM), a MoE import example naming a symbol vLLM doesn't export, an invented Stage 6 artifact path (and the test defending it), a self-contradicting parallel-tracks re-profiling section, and `new_target.py --help` contradicting `workload-invocation.md` on `--max-model-len=auto`.
+- Improved — Lost mechanical coverage restored: the Codex profiler-contamination suite is back to the full 37 tests (was silently stubbed to 5), and the Claude test runner now collects the 69 eval/causal tests the Codex runner already ran.
+- Changed — Hook and server dead code removed: monitor-reminder's never-read `.needs_monitor` sentinel, Codex jsonschema plumbing and stop-guard one-shot marker, the Codex campaign-anchor read path, `gpu_status.py --json` (use `gpu_reservation.py status`), the server's dead PTY fork-launch path, and the per-worktree `session.json` decoy writes.
+- Changed — The internal intent map is true again: 6 entries for removed machinery deleted, 15 broken section anchors re-resolved, and 11 live load-bearing pieces (verify_validation_gates.py, state.schema.json, run_all.sh, audit-phase2 hooks, ...) that had no entry are now mapped; 151 pieces, each anchor resolves.
+
+### 1.16.0 (2026-07-28)
+- Fixed — A stale baseline could quietly weaken the DILUTED_PASS gate for an entire campaign: baselines recorded before the decode-share denominator fix carry an inflated share under the same JSON key, and the gate trusted it (observed 1.68x too permissive on a live campaign). Gate, report generator, and state nudge now re-derive the share from `decode_avg_s / avg_s` at point of use, so old artifacts can no longer relax the floor.
+  - Consumer-side derive-at-use in `verify_validation_gates.py` (:1034 region), `generate_validation_report.py` (`_row_phase_metrics`), and `ammo_state.py` (`_decode_share_from_baseline_file`), both variants. Sweep `_aggregate_launches` share no longer coupled to `prefill_avg_s` presence. Session-discovered on glm52_nvfp4_b200_fp4_tp4 (stored 0.879 vs wall 0.524); track sweeps copy the round-1 baseline JSON verbatim, so emitter fixes alone could never close it.
+- Changed — The researcher's two per-agent hooks (advisory dilution table check, adversarial Stop reviewer) are removed; the independent audit gates (T_AUDIT_S1/S2) already recompute the same identities from primary traces and block on them, so the hooks re-litigated findings without adding protection.
+  - `ammo-validate-researcher-dilution.sh` + `test_researcher_dilution_hook.py` deleted; `ammo-researcher.md` frontmatter hooks stripped, hook-tolerance line reworded to cite T_AUDIT_S2 (matches Codex, which never had the hooks and passed the parity audit on identical guarantees). Every defect the hook could catch is an algebraic-identity transcription check, now documented as such in `e2e-delta-math.md`.
+- Changed — Audit repair ownership tightened: mining-artifact findings dispatch to `ammo-researcher`, never repaired inline by the lead. Six audit cycles on one campaign showed lead hand-patches introducing 1-2 new transcription drifts per repair in the 1300-line mining artifact.
+  - `audit-protocol.md` § Repair and Re-audit, both variants. Also new `e2e-delta-math.md` Window/Family rules (one step window per row; enumerated symbol lists + exhaustive partition over prefix matchers; derive secondary tables from the partition), `validation-defaults.md` Speed-of-Light achievability disclosure, and `artifact-layout.md` `profiling_prefill` sweep slot + layout-warn hook false-positive fixes (directory tokens, repo-relative paths, proper ancestors).
+
+### 1.15.2 (2026-07-22)
+- Fixed — An orphaned CuTeDSL self-check template that could only ever report a false failure was removed (its checks now live in the technology-selection Production Self-Check), and two test suites that were silently never running are now part of the test run.
+  - `cutedsl_cudagraph_selftest.py` deleted from both variants — it was orphaned when the minification prose that referenced it was removed, and its fourth check read a `cutlass.cute.compile_stats` API that does not exist, so any run was a guaranteed false FAIL. The four capture/replay checks it claimed are covered by `references/technology-selection.md` § Production Self-Check plus the `cudagraph-safety.md` / `torch-compile-contract.md` contracts. `test_correctness_comparator.py` and `test_gpu_reservation.py` relocated from `scripts/` to `tests/` — `run_all.sh` only collects `tests/`, so both were dead coverage; the latter is renamed `test_gpu_reservation_session_id.py` to fix a pytest basename collision with the existing `tests/test_gpu_reservation.py` that hard-aborted broad collection. Both relocated suites use the `../scripts` sys.path shim from `test_sweep_dp.py`. Hook allowlists (`ammo-venv-python-guard.sh`, Codex `pre_tool_use_guard.py`) and the test-champion.md C12 scenario were re-anchored off the deleted script.
+
+### 1.15.1 (2026-07-22)
+- Fixed — A stale Stage-2 gate script could falsely block the round that follows a shipped optimization: it demanded a fresh baseline sweep, profiling pass, and provenance file that the campaign rules explicitly forbid creating. The script is removed; Stage 2 is now gated by the independent audit (`T_AUDIT_S2`) alone, which already re-derives everything the script checked.
+  - `verify_stage2_gate.py` deleted from both variants along with `test_stage2_gate_v2.py` and the server-side `test_verify_stage2_gate_dilution.py`. Its four checks were all redundant or contradicted: artifact existence and dilution-field presence are owned by the researcher contract + audit pre-checks, the dilution arithmetic is duplicated by `ammo-validate-researcher-dilution.sh` (advisory) and T_AUDIT_S2 (blocking), and `_check_post_ship_remine` contradicted SKILL.md's post-SHIP re-mine contract (hit live as a false FAIL, adjudicated Option A). State engine never keyed on the script — the 2→3 transition gates on `audit.stage_2.passed_at`. Scrubbed all references (SKILL.md, optimization-categories.md, validation-defaults.md, artifact-layout.md T5 labels, ammo_state.py next-step nudge, Codex post_tool_use_guard allowlist + advisory, README flow, test-orchestrator.md, hook tests).
+
+### 1.15.0 (2026-07-17)
+- Changed — Campaign guidance was minified: every agent role, stage, gate, and script keeps its semantic contract, but the skill documents are substantially shorter, so agents spend less context re-reading policy and more on the campaign itself. Behavior at gates, thresholds, and stop conditions is unchanged.
+  - Applied the reviewed ammo-codex-min export to BOTH variants (`.claude` and `.codex`); equivalence findings, owner sign-off, and the six pre-application fixes were verified against the 154-piece internal intent map.
+- Changed — state.json schema is now v4.2: mining records `top_f_e2e_pct` and `top_addressable_e2e_pct` (the Stage 7 stop input), debate selections carry a typed `selection_mode` (`ordinary` / `contingent_host_spike`) with a validator-enforced boundary A/B, and tracks gain `gate_5_2_boundary`, `SKIPPED` gate values with mandatory skip reasons, and implementer/monitor pairing fields.
+- Changed — Stage 2 dilution arithmetic (budget check, per-row f_e2e ≤ f_decode, busy-ratio cross-check) now also runs inside `verify_stage2_gate.py` as advisory warnings, and a post-SHIP re-mine provenance gate requires a fresh promoted baseline bound to the shipped commit before the next round's mining is accepted.
+- Fixed — Removed stale duplicate docs from the Codex variant (skill README, claude-codex-equivalents, da-audit-checklist); their load-bearing content lives in SKILL.md and the references.
+
+### 1.14.0 (2026-07-10)
+- New — A kernel win that is real but too diluted to move end-to-end latency can now ship through a dedicated DILUTED_PASS path instead of being discarded: the track passes if its decode-phase improvement is statistically significant and comfortably above noise, prefill is not significantly regressed at any batch size, end-to-end never drops below 1.0x, and the numbers are internally consistent. Diluted ships are marked as such everywhere they appear.
+  - Sweep now emits per-iteration `prefill_iter_means_s` / `decode_iter_means_s` plus row-level `phase_significance` (Welch, omit-not-null); report adds `e2e_gate.diluted_pass` with the 5 ship conditions (incl. Amdahl-consistency) and overrides the verdict to PASS. No new status enum: track stays PASS + `diluted: true` marker + round-level `diluted_tracks`. Accounting firewall: measured e2e (~1.00x) enters cumulative speedup, never TPOT; EV ranking stays on projected e2e. New BLOCKING S45 audit row 15 forces the marker; `score_campaign.py` keeps the base-score gate undiscounted but discounts diluted ships in the diversity bonus. 6 golden fixtures + 3 new test files; adversarially reviewed (4 HIGH findings fixed pre-merge).
+- Changed — Design debates run leaner: in round 1 the proposal itself is the argument of record (the separate argument phase is gone), champions hand critiques to each other directly through a per-candidate ring instead of waiting on lead broadcasts each phase, and eligibility gate verdicts are recorded once at the Phase-0 gate and trusted by scoring instead of re-derived.
+  - CUT-1..4 from the round-time redundancy audit. `ring_assignment` is emitted per minted op_id with a `target_section` field, so a champion owning multiple candidates gets full critique coverage without resolving anything itself. Done-signals are atomic write-temp+rename files; lead barriers kept only at the Phase-0 gate and the end-of-round open-items tally; lead liveness via artifact-dir polling with per-phase timeouts. Verdicts live in lead-owned `rounds/{CR}/debate/eligibility_verdicts.md` (hook-allowlisted); scoring re-derives only on elimination-capable Phase B/C evidence.
+- Changed — Debate candidates are now ranked by expected value — P(success) x projected end-to-end gain, uncapped — with the old gates and caps acting as an eligibility filter, and the claim phase is replaced by portfolio selection: every champion analyzes the full profile and submits 2-3 ranked candidates, with diversity enforced at winner selection. Winner choices near the old thresholds may differ from earlier campaigns.
+  - EV_pct elimination floor = `min_e2e_improvement_pct`; optional spawn-time lens hints replace component partitioning; cross-component proposals are first-class; the portfolio concentration rule guards diversity at Winner Selection.
+- Changed — The ship gate now decides from a single launch's statistics: PASS requires the measured speedup to clear the configured floor and the improvement to be Welch-significant across per-iteration latencies. The multi-launch `--num-launches` approach is retired.
+  - Floor = 1 + max(`min_e2e_improvement_pct`, `noise_tolerance_pct`)/100; gate-slot misinvocation guard; FP8 placeholder removed; new tolerance audit row; dead Pre-SHIP jq checks fixed.
+- Improved — Background monitoring and audits cost less without watching less: the transcript monitor polls on a two-cadence model (~10s cheap collision/liveness tick, ~45s full transcript analysis, 5s floor when suspicious) and no longer sends routine interim pings; audits do simple arithmetic checks inline instead of spawning a delegate for each, and per-track Stage 4-5 evidence can be gathered early while other tracks are still validating.
+  - CUT-6/7/8/9. The monitor's advisory checklist is deliberately unchanged — breadth kept over cost. Audit Lane A (inline, INVESTIGATOR-DIRECT citations) vs Lane B (delegate fan-out; Holistic row 1 stays Lane B permanently); early partials at `rounds/{N}/audits/stage_45_partial_{op_id}.md`, all deleted on any re-audit. Terminal DA-MONITOR SUMMARY remains unconditional.
+- Fixed — Campaigns with legacy rounds no longer deadlock on every state write (the mining-enrichment non-null rule moved from a schema constraint to a round-advance gate), and an exhausted audit loop now quarantines and re-audits only the affected tracks — the whole campaign pauses only for campaign-scoped findings.
+  - +6 hook tests (ME1-ME6), +5 engine tests pin both legs. Also removed stale reference docs (code-templates.md, gpu-configs.md, optimization-techniques.md) and pinned the debate champion to the `fable` model alias (matching the impl champion).
+
+### 1.13.0 (2026-07-08)
+- Changed — A campaign now stops a state.json write when validation cannot run (for example a corrupted state.json, or a session environment missing the jsonschema library), instead of silently letting the bad write through. If you are in a deliberately degraded environment, set AMMO_VALIDATE_FAIL_OPEN=1 to restore the old permissive behavior.
+  - Fail-closed is enforced via the PostToolUse decision:block payload from `ammo-state-validate.sh` / `ammo_state.py` — never exit codes. FLIPPED to block: missing jsonschema lib (schema file present), state-file JSONDecodeError, hook-side missing python3/engine. LEFT fail-open: missing schema FILE (the deliberate vanished-schema fast-bail). Both engine hooks now resolve the session worktree `.venv/bin/python` before falling back to bare `python3`, so a jsonschema-less system python cannot turn every write into a block storm.
+  - Writes that reach state.json through a shell variable (`F=.../state.json; jq ... > "$F"`) are now detected and validated too (path-in-variable gap closed).
+- New — Sessions now hard-block `pip install` / `pip uninstall` (including `pip3`, `uv pip`, and `python -m pip` forms), so an agent can no longer corrupt the pre-provisioned session environment mid-campaign. Read-only pip commands (list, show, freeze, check) still work, and merely quoting the phrase — `grep "pip install"`, `git log --grep` — is not blocked.
+  - `ammo-pip-guard.sh`: always-on PreToolUse Bash deny (exit 2 + stderr, matching the sibling-guard convention), command-position regex anchoring (handles `cd x && pip install` and env-var-prefixed forms; ignores quoted mentions), escape hatch AMMO_ALLOW_PIP=1 for the provisioning system. Harness: 25/25.
+- Improved — Stage-transition guidance and state validation now come from a single state engine instead of logic duplicated across hooks, so the "next step" nudges you see after each stage are consistent, schema-aware, and match what validation will actually accept.
+  - New `scripts/ammo_state.py` (~1850 lines; verbs get/set/validate/next-step/advance/enrich/backfill; identity-agnostic — reads only state.json) with a frozen `transitions.json` companion; `ammo-next-step-reminder.sh` delegates to it. Conformance suite: 535 pytest tests + all hook harnesses (11/11 suites green). Also: optional `mining_invalidated` boolean round field in the schema; status/verdict vocabulary sync-oracle test.
+  - Wording aligned with the CC 2.1.198 implicit-team model everywhere the engine speaks (spawn "named champions into the implicit team", teardown via SendMessage shutdown_request/shutdown_approved drain); deflation-factor references stripped from the engine and fixtures to match the 1.12.3 schema.
+- New — A saved session-babysitter workflow (`ammo-session-babysitter`) keeps an unattended campaign moving: it watches the live session, catches stalls and prompt-blocking dialogs, and nudges or recovers the session. Proven over 66 live monitoring cycles before being checked in.
+- Improved — Agent instructions were de-duplicated to one canonical source per rule (shutdown protocol, nsys Stage-1 command, GATING_REQUIRED workflow, parity rules), so agents no longer receive drifting copies of the same instruction.
+  - New canonical `references/shutdown-protocol.md`; per-agent shutdown blocks collapsed to a role line + pointer; SKILL.md single-owner consolidation; README regenerated; heading-based pointers across cluster-4 copies.
+
+### 1.12.7 (2026-07-07)
+- Updated — Claude Code CLI updated to 2.1.202, and session model defaults refreshed: debate/impl champions now run Claude Fable 5 (was Opus), and the default Sonnet alias points at Claude Sonnet 5 (was Sonnet 4.6). Teammates are also now pinned to spawn as tmux panes explicitly, so team visibility in the terminal is guaranteed rather than left to the CLI's default.
+  - CC 2.1.202 verified end-to-end via the verify-cc-upgrade skill (Phase A + B, all 5 preconditions incl. a LIVE interactive-tmux named-teammate spawn). Behavioral note: the `agentName:null` transcript lines 2.1.198 wrote are gone on 2.1.202 — identity resolution already rides the `agent-<id>.meta.json` sidecar fallback in `ammo-msg-check.sh` (harness 81/81, transcript_filter 42/42).
+  - Model wiring: `agents/ammo-champion.md` and `agents/ammo-impl-champion.md` model → `fable`; `settings.local.json` env `ANTHROPIC_DEFAULT_SONNET_MODEL` → `claude-sonnet-5`; top-level `"teammateMode": "tmux"` added.
+  - Coupled test updates: `test_session_managers.py` model-default assertions (Opus 4.8 / Sonnet 5 / global haiku); `test_teammate_mode_removal.py` codebase grep narrowed to forbid only non-tmux `teammateMode` values (the template's explicit tmux pin is the desired mode the regression guards).
+
+### 1.12.6 (2026-07-06)
+- Updated — Sessions now build against vLLM v0.24.0 (was v0.23.0). torch (2.11.0), the supported Python range, and the `vllm bench latency`/`serve` flag surface are all unchanged, so existing sweep configs keep working. One upstream note: vLLM no longer sets `CUDA_VISIBLE_DEVICES` internally (CUDA deployments now use a `device_ids` argument) — AMMO's GPU isolation is unaffected because the session/server sets `CUDA_VISIBLE_DEVICES` externally, which is still honored.
+  - Dependency bump only — no new AMMO capability. cu130 precompiled wheel published for the v0.24.0 tag (commit ee0da84a); precompiled env-var contract (`VLLM_USE_PRECOMPILED`/`VLLM_PRECOMPILED_WHEEL_COMMIT`/`VLLM_PRECOMPILED_WHEEL_VARIANT`) and `tools/generate_cmake_presets.py` byte-identical vs v0.23.0; torch stays 2.11.0 and requires-python stays `>=3.10,<3.15` (verified in requirements/cuda.txt and pyproject.toml at both tags).
+  - Source builds (`VLLM_USE_PRECOMPILED=0`, e.g. custom forks / on-demand csrc builds) gain a new `fmha_sm100` external project that FetchContent-clones `vllm-project/MSA.git` at cmake-configure time (needs network, slightly longer first build), and CMake now hard-fails on GCC < 11.3 (image ships 11.4.0 — passes). New Rust PyO3 extension `_rust_tool_parser` ships precompiled in the wheel; the wheel's abi3.so set grew to 10 (`_moe_C` renamed to `_moe_C_stable_libtorch`, new `_qutlass_C`).
+  - Runtime deps: transformers floor jumps to >= 5.5.3 (Transformers v4 support deprecated); first-generation Qwen/QwenVL models deprecated upstream; humming-kernels 0.1.4 → 0.1.6. None of the MoE presets are affected.
+  - Pins bumped in lockstep: `Dockerfile` ARG VLLM_VERSION=0.24.0 / VLLM_BRANCH=v0.24.0; coupled assertions in `test_simplified_vllm_env.py` (L844/L855/L1074 + docstrings); version-derived editable-install `.pth`/finder filenames in `.claude/workflows/ammo-pr-ab-bench{,-resume}.js`. Versioned as a patch to match prior base bumps (1.12.2, 1.12.4).
+
+### 1.12.5 (2026-06-22)
+- Changed — The E2E latency sweep now times against real prompts (windowed text from the bundled GSM8K corpus) instead of uniform-random token IDs. This matters most for speculative decoding (MTP / EAGLE / ngram): on random tokens the draft and target models almost never agree, so realized acceptance collapsed to ~0 and a draft/verify kernel win was invisible in the measurement. Within a campaign baseline and opt are still measured identically (so speedup stays valid), but absolute decode_avg_s / OTPS / TPOT are no longer comparable to rounds captured before this change — re-capture your baseline if you compare across that boundary.
+  - New — spec-decode rows now carry a `spec_decode` block (`draft_acceptance_rate`, `mean_acceptance_length`, raw drafts/draft_tokens/accepted counts) in `e2e_latency_results.json`, read from `llm.get_metrics()` per bucket. Purely additive: the key is absent for vanilla-decode targets, and no existing key (`avg_s`, `speedup`, the 2-stddev gate) changed.
+  - Prompts are deterministic per `(input_len, output_len, batch_size)` via crc32-seeded modulo windows, so baseline and opt see identical prompts (kernel is the only A/B variable) and DP ranks build identical windows before partitioning. Legacy behavior is still reachable with `--dummy-prompt-source random`.
+  - All timing runs now require the bundled `data/gsm8k_full.json` co-located with the script — there is a fail-fast startup check (skipped for `--dummy-prompt-source random`). OTPS/TPOT formula unchanged (amortized end-to-end tokens/wall-second; not physical ITL).
+  - Implementation detail: applied directly to the `ai_cli_session/.claude` copy of `scripts/run_vllm_bench_latency_sweep.py` (+346 lines) — the `vllm/.claude/` copy was intentionally left untouched, so this diverges from the usual source-of-truth flow and a future `/import-ammo` would revert it unless forward-ported first. New `tests/test_sweep_real_prompts.py` (29 tests); 319 existing sweep tests still pass; adversarially reviewed + a live Qwen3-0.6B GPU smoke confirmed valid `avg_s` rows with `spec_decode` correctly absent. The `pr45717-latency-sweep.js` A/B workflow pins `--dummy-prompt-source random` (bare-file deploy, no spec-decode).
+
+### 1.12.4 (2026-06-17)
+- Updated — Sessions now build against vLLM v0.23.0 (was v0.22.1). torch (2.11.0) and the supported Python range are unchanged, but two upstream defaults flip the baseline you profile against: the Triton MoE backend is now the default on Hopper (H100/H200), and Model Runner V2 is now the default for Llama and Mistral dense models. Re-capture your baseline before comparing a fresh campaign against pre-bump numbers for those targets.
+  - Dependency bump only — no new AMMO capability. cu130 precompiled wheel published for the v0.23.0 tag (commit 0fc695fc); torch stays 2.11.0 and requires-python stays `>=3.10,<3.15` (verified in requirements/cuda.txt and pyproject.toml at tags v0.22.1 and v0.23.0).
+  - Default-backend changes that move the profiling baseline: Triton MoE backend default on Hopper (vLLM #44220) and MRv2 default for Llama/Mistral dense models (#43458, previously Qwen3-only). FlashInfer bumped to v0.6.12 (#44036), shifting the bundled-kernel baseline.
+  - fp4 targets: NVFP4 KV-cache now fail-fasts on an unsupported arch (#43669) — surfaces as a hard startup error on the wrong GPU instead of degrading silently. `vllm bench serve` is additive only (timed trace replay #39795, reasoning-model benchmarking via --chat-template-kwargs #44244); no `vllm bench latency`/`throughput` flags removed or renamed.
+  - Pins: `Dockerfile` ARG VLLM_VERSION=0.23.0 / VLLM_BRANCH=v0.23.0; coupled assertions in `test_simplified_vllm_env.py`; editable-install `.pth`/finder filenames in the A/B bench workflows. Versioned as a patch to match the prior base bump (v0.21.0→v0.22.1 shipped as 1.12.1→1.12.2): an upstream dependency bump with no new capability.
+
+### 1.12.3 (2026-06-16)
+- Changed — Debate scoring now ranks candidates on their projected end-to-end gain as-is, instead of dividing it down by a fixed "deflation" factor first. A lossy/quant proposal is no longer penalized relative to a lossless one purely for its precision class — its accuracy risk is judged where it can be measured (the precision-reduction critique deduction and Gate 5.1a correctness), not as a discount on its projected speedup. Winner selection near the threshold may differ from earlier campaigns.
+  - Removed `lossless_e2e_deflation_factor` / `lossy_quant_e2e_deflation_factor` from `state.json` config and `state.schema.json` (both keys dropped from `config.required`; `config` stays `additionalProperties:false`). The factors were an unvalidated constant with no calibration feedback loop — `check_projection_accuracy.py` never read them, and on real tracks the deflated projection still over-projected realized E2E. Anti-optimism is already handled by the `f_decode→f_e2e` conversion (2-point deduction) and the conservative `f_e2e` lower bound.
+  - Updated: `debate-scoring-rubric.md` scoring math, `validation-defaults.md` where-checked table, `SKILL.md` config block, `new_target.py` scaffold, `ammo-next-step-reminder.sh` Stage-3 winners nudge, agent vocab. Removed obsolete schema-required tests (23/23b/23c) and dropped the keys from all hook + unit-test fixtures.
+
+### 1.12.2 (2026-06-09)
+- Updated — Sessions now build against vLLM v0.22.1 (was v0.21.0). No campaign-affecting API changes.
+  - cu130 precompiled wheel published; torch 2.11.0 unchanged; `vllm bench latency` surface zero-diff; `vllm serve` flags additive only.
+- Updated — Claude Code CLI updated to 2.1.170.
+  - Verified end-to-end: agent teams, all 8 hook events, subagent env injection (5 vars), onboarding/trust suppression; 99/99 session+GPU tests.
+- Fixed — An optimization authored inside an editable GPU runtime package (flashinfer / cutlass / deep_gemm) is now captured as a patch in your session artifacts, instead of silently disappearing on cross-pod resume or PR extraction.
+  - Patch written to `rounds/{N}/tracks/{op_id}/runtime_pkg.patch`; framed as an upstream-dependency patch a vLLM PR can't carry — champions are steered to author shippable wins on git-tracked `vllm/`/`csrc/`.
+  - Worktree creation is now abort-safe (atomic copy, non-fatal on failure) so a failed package copy can't leave a track with a broken `import vllm`; large precompiled cubins are no longer copied per-track (saves ~1.1GB each).
+
+### 1.12.1 (2026-06-09)
+- Changed — Campaigns now accept a much wider range of optimizations. Any authored mechanism — custom kernels, weight-layout transforms, compute-graph passes, pipeline or communication restructuring, attention/KV-layout changes — is eligible as long as it targets a profiled bottleneck and produces a measured end-to-end win, not just the three legacy kernel categories.
+  - Category becomes a non-binding 9-value descriptor; gate routing keys on the slice attacked (decode-kernel vs inter-kernel). Grounded in 12 live B200/B300 sessions where library-restructuring wins were previously blocked.
+- Improved — The enable flag on a shipped optimization is now named for what it does (e.g. `VLLM_<SCOPE>_<MECHANISM>`), so a resulting PR reads clearly instead of leaking an internal tracking handle like `VLLM_OP004`.
+- Fixed — Campaigns no longer deadlock when re-mining for the next optimization after one ships.
+- Fixed — Agent teammates now shut down cleanly when a stage ends, instead of lingering with an open terminal pane.
+- Fixed — Per-track build environments no longer fail with `No module named 'cutlass'`.
+- Fixed — A champion clearing a stale compile cache no longer stalls on an approval that never arrives in an unattended campaign (uses a fresh cache root instead of a blocked `rm -rf`).
+
+### 1.12.0 (2026-06-04)
+- Improved — Champions now choose their optimization approach from the actual profiling data for the component they were assigned, rather than committing to an approach from the written analysis before any data is examined. This produces fewer wasted pivots mid-campaign.
+  - Motivated by a session where all three champions selected from the report alone; one claimed a fusion that the activation cubin already performed, burning two pivots.
+- Changed — Two champions may now target the same component and differentiate by mechanism, instead of the later one being forced to yield.
+
+### 1.11.1 (2026-06-04)
+- Changed — A campaign now keeps an optimization that delivers a 0.25% end-to-end speedup (was 1.0%), so smaller but real wins are no longer discarded.
+- Improved — Each benchmark now runs 10 measurement iterations (was 5) for steadier, less noisy timings.
+- Improved — The design debate runs a single round by default — a second round only fires when a champion raises an unaddressed critique or new evidence — so rounds finish faster.
+
+### 1.11.0 (2026-06-02)
+- New — Bring your own vLLM fork. Point a session at any public GitHub vLLM fork (private forks via an access token) and AMMO builds it from source. You watch the build live in the terminal, and the session goes ACTIVE the moment the build finishes.
+  - Fork URLs are restricted to `https://github.com/...`; access tokens are encrypted at rest. GPUs are held through the whole build so the session is ready immediately. Session cards show a BUILDING badge (with elapsed time) and a clickable FAILED badge on error.
+- Improved — Resuming a fork session now takes ~1-3 min instead of ~15-20 min, because the compiler cache is preserved across pause/resume.
+- New — Campaigns now make their own call at decision points when running unattended, instead of stalling and waiting for you.
+  - An investigator agent weighs each option against the campaign goal from primary evidence and returns a recommendation.
+- New — One-command draft PR from a session's verified wins (the `ammo-session-to-pr` workflow): locate the session, diff its shipped optimizations against the base, and open a draft vLLM PR with the campaign evidence.
+- Improved — The dashboard fleet is far more stable under load — pods no longer restart under cross-pod traffic.
+  - The event loop no longer blocks on synchronous K8s/S3/disk calls; cross-pod proxy fan-out is parallelized and capped at one hop.
+- Fixed — Creating a fork session no longer silently drops the fork URL for browsers running a stale cached UI (asset cache-buster bumped).
+- Fixed — Kernel-speedup hero numbers and the mining/debate panels now render for new sessions (they were sometimes blank after an internal metrics refactor).
+- Fixed — A `main`-branch session no longer fails to start during the nightly vLLM wheel-publish window (it now pins the build-verified commit).
+
+### 1.10.0 (2026-05-27)
+- New — B300 GPUs are now supported (detection, dtype map, profiling).
+- Improved — Bottleneck profiling now captures real steady-state decode steps, so attribution is accurate even under chunked prefill and speculative decode.
+- Improved — The campaign auditor independently re-derives its findings before checking them against the institutional checklist, catching more issues.
+  - Internal: the per-artifact metadata sidecar layer was removed end-to-end; the dashboard now reads metrics directly from campaign state. No user-visible behavior change.
+
+### 1.9.3 (2026-05-21)
+- Changed — Dispatch-elimination optimizations are eligible again (restored as a third category), so wins like removing redundant per-step dispatch can ship.
+- Improved — Single-winner rounds skip the multi-track selection ceremony.
+- Improved — Campaigns on models with inherent non-determinism are no longer blocked by a determinism check.
+- New — A stuck champion can now escalate to an investigator agent for root-cause analysis.
+- Fixed — Baseline measurements are protected from profiler flags that would have contaminated them.
+
+### 1.9.2 (2026-05-19)
+- Changed — The campaign flow is simpler and more reliable: profiling now goes straight from baseline to mining to debate, dropping the routing gate and the ncu sanity step.
+  - ncu reliably fails on torch.compile + CUDA-graph workloads (its inflated numbers had misrouted two campaigns); routing led to structurally unshippable proposals and shipped zero optimizations across three campaigns. The end-to-end dilution model is kept.
+- New — The investigator agent now serves both the orchestrator (campaign-level state consistency) and champions (code-level root-cause analysis).
+
+### 1.9.1 (2026-05-14)
+- New — The dashboard now shows a side-by-side diff of every file an optimization changed (the "Files Changed" viewer).
+- Improved — Campaign artifacts are grouped by folder with file-type badges, so they're easier to browse.
+- Fixed — Several dashboard panels (integration speedup, gate verdicts, debate scores) that showed empty or wrong values now render correctly.
+
+### 1.9.0 (2026-05-12)
+- Changed — An optimization's value is now measured by its real end-to-end impact — an Amdahl-style model across kernel, inter-kernel, prefill, and non-decode time — rather than raw kernel-time share, so projected wins track measured wins.
+- New — Campaign artifacts are organized per round (`rounds/N/...`) in the dashboard.
+- Updated — Claude Code CLI updated to 2.1.140.
+  - Also: a broadened optimization mandate with per-category projection formulas and Phase 0 evidence requirements; schema v4.1; post-Stage-5 projection-accuracy logging. Largely internal pipeline groundwork.
+
+### 1.8.0 (2026-05-07)
+- New — Dashboard redesign: per-batch-size result chips, a bottleneck-mining chip (top component, percentage, Amdahl ceiling), a debate chip (winner plus scoreboard), and a LIGHTGRID-themed report viewer.
+- Improved — Each round is faster: the integration sweep now doubles as the next round's baseline, removing a separate re-profile step.
+- Changed — Results are tracked per batch size end-to-end. Existing campaigns are migrated automatically on read.
+  - Internal: state schema v4.0 (per-BS latency maps, sibling per-BS verdict, scalar kernel speedup); audit gates consolidated to S1 / S45 / S67.
+
+### 1.7.0 (2026-05-06)
+- Changed — Model selection is now live HuggingFace search with automatic TP/DP/dtype suggestions based on your GPU, replacing the fixed preset dropdown.
+- New — A campaign auditor runs sanity gates across the pipeline and blocks the campaign on a failed gate.
+- New — You can request spare GPUs beyond TP×DP for parallel experiment tracks, via a GPU Count stepper in the create modal.
+- Improved — Speedup deflation factors recalibrated (lossless 2.0→1.5, lossy 4.0→2.0).
+  - Removed the static model-preset API endpoints; `/health` now reports a structured GPU and vLLM block.
+
+### 1.6.2 (2026-05-05)
+- Improved — The optimization skill was slimmed down — fewer free-form authoring surfaces, structured campaign state instead of prose — so campaigns behave more consistently across models.
+  - Four prune passes: structured `exhausted_technologies` array replaces exhaustion-note prose; deterministic debate-summary renderer; deflation split into named config fields; a lead-owned target prefilter classifier with testable speedup caps in schema defaults.
+
+### 1.6.1 (2026-05-04)
+- Fixed — Worked around an Opus 4.7 regression that caused campaigns to ship zero optimizations on H100/B200: orchestrator scaffolding runs on the prior model while implementation keeps the newer one's code-generation strength.
+
+### 1.6.0 (2026-05-01)
+- Improved — Correctness validation now runs the full GSM8k test split (1319 questions) with a configurable tolerance, so it catches real accuracy regressions while tolerating benchmark noise.
+- Changed — Kernel technology choice is now signal-driven (hardware generation, baseline tech, op character, library coverage) rather than Triton-first, and CuTeDSL is a first-class option alongside CUTLASS.
+  - Proposing a strictly higher-abstraction technology than the baseline now requires beats-baseline evidence or its feasibility score is capped. Any CuTeDSL proposal must pass a CUDA-graph self-test.
+
+### 1.5.0 (2026-04-30)
+- New — Data-parallel (DP) deployments are supported across the pipeline, and MoE models expose DP/EP options at session creation.
+- New — Codex CLI is supported as an alternative agent harness for sessions.
+- New — The dashboard gained a campaign artifact browser.
+- Fixed — Sessions can be created from a commit SHA, not just a branch name.
+
+### 1.4.0 (2026-04-27)
+- Updated — Sessions now build against a pinned vLLM release (v0.20.0) instead of nightly wheels, so builds are reproducible. Session cards and the create modal show the release version.
+- Updated — Claude Code CLI updated to 2.1.114; container base image moved to CUDA 13.0.
+
+### 1.3.2 (2026-04-16)
+- Updated — Default model is now Opus, with 1-hour prompt caching enabled for sessions.
+
+### 1.3.1 (2026-04-16)
+- Fixed — GPU reservations are now reliably released after each tool use. Two hook bugs had been dropping releases and leaking GPUs; a dropped release now self-heals within 15 minutes instead of 2 hours.
+  - Long sweeps / nsys runs must now pass `--lease-hours 2` explicitly. A SubagentStop safety net releases a returning subagent's reservation.
+
+### 1.3.0 (2026-04-15)
+- New — The campaign command understands input/output-length and batch-size flags, expanding multiple ISL/OSL pairs into a full workload matrix.
+- New — A report-writer agent produces the campaign report, and artifacts are tracked automatically as they're created.
+
+### 1.2.4 (2026-04-08)
+- Fixed — The orchestrator is now reminded to spawn a transcript monitor after creating champions, so champion work is actually supervised.
+
+### 1.2.3 (2026-04-07)
+- Fixed — Corrupt transcript lines (from write races) no longer cause champions to be falsely blocked mid-campaign.
+
+### 1.2.2 (2026-04-06)
+- Fixed — Teammate-message delivery counting is now accurate, so champions are no longer blocked or released incorrectly.
+
+### 1.2.1 (2026-04-06)
+- Fixed — The mid-turn message-delivery gate now works correctly for tmux-based agents.
+
+### 1.2.0 (2026-04-03)
+- Changed — When an optimization fails on accuracy, champions must now classify the failure, investigate the root cause, and iterate until both the champion and the monitor agree the options are exhausted — no premature give-up, no retry or time limits.
+- New — A tiered profiling strategy (nsys node-level, torch.profiler Chrome traces, nsys graph enrichment) is selected automatically based on a probe.
+
+### 1.1.0 (2026-04-02)
+- Changed — Correctness is now validated by deterministic GSM8K generation against golden references, replacing the older token-level comparison.
+- New — Quantization optimizations are scored for accuracy risk (lossy vs lossless), with extra accuracy checks required for lossy tracks.
+
+### 1.0.0 (2026-03-31)
+- New — Initial versioned release of AMMO: a 7-stage campaign pipeline with adversarial debate, parallel worktree tracks, and GPU pool management.
