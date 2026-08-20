@@ -209,7 +209,7 @@ of AAAI-27). Citation metadata is in [CITATION.cff](CITATION.cff):
 ```
 
 The ablation evidence archive referenced by the paper's appendix
-(zstd-compressed, ~753 MB: session transcripts, verification ledger, and
+(zstd-compressed, ~430 MB: session transcripts, verification ledger, and
 per-run investigation reports) is published as a versioned **release asset**
 on this repository; each release lists the archive's SHA-256 in its notes.
 

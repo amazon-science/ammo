@@ -1,9 +1,5 @@
 # AMMO: How We Keep Agents Honest on 8-Hour Autonomous GPU Optimization Campaigns
 
-**Date:** 2026-05-21
-**Author:** Jin Huang
-**Audience:** AI/ML engineers familiar with vLLM and CUDA, new to multi-agent orchestration
-
 ---
 
 ## 1. Introduction
@@ -23,8 +19,6 @@ This document explains those mechanisms in the order we found them to matter, gr
 | §4 | The Mechanism Hierarchy | Understand, in priority order, what actually keeps agents on-rails |
 | §5 | The Hook System | See real enforcement code and understand the runtime layer |
 | §6 | Annotated Walkthrough | Follow a real H100 campaign and see where each mechanism fires |
-| §7 | When the Hierarchy Hurts | Understand the costs and limitations (ablation counter-evidence) |
-| §8 | Eval & Closing | See how we measure whether the system works beyond individual campaigns |
 
 ---
 
@@ -566,66 +560,3 @@ The first is a *methodology bug* — `scale_1x128_kernel` was undercounted by 4.
 The second is a *failed CUTLASS attempt that proves the validation pipeline is real*. Round 2's `gate_up_cutlass_sm90` track tried a CUTLASS SM90 GEMM replacement and failed compilation with `static_assert(MmaTileShape::M >= 128)`. The adversarial validation pipeline (build → test → E2E) caught this before any incorrect results could propagate. Track FAIL. Round continued.
 
 And, as in the 35B campaign, the auditor caught a baseline corruption: in Round 3 the recorded baseline environment had been silently flipped to a non-production setting due to a researcher's pristine-sweep side effect. Restored before integration certification could use the wrong environment.
-
----
-
-## 7. When the Hierarchy Hurts
-
-A document that reports only successes is a sales pitch, not engineering. The same mechanisms we celebrated above also have failure modes, and the ablation data is unsparing.
-
-**Debate lock-in.** `fp8_r05` is the cleanest example. All five seeds in arm B (debate + actor) locked onto the same target — GDN `in_proj` — which had a non-viable accuracy wall. Two of five seeds in arm A (actor only), free to pivot independently per seed, found viable MLP `gate_up_proj` targets at +11–13%. Debate's strength — converging on a sharp specification — is also its weakness when the sharp specification is wrong. We are still working on this; the current mitigation is the Phase −1 target claim waterfall, which forces structural diversity across champions.
-
-**Monitor over-engineering.** V2 D2 (Opus monitor) on `int4_r05` was *worse* than D1 (Sonnet monitor): the more aggressive monitor pushed implementations toward Dynamo-opaque architectures that hurt numerical fidelity. D1 shipped 3 of 3 on this task; D2 shipped fewer. A monitor that cares too much about every potential issue can pull the implementer away from local optima it would otherwise find.
-
-**Conservatism tax.** On `gemm_r01`, the mean speedup in arm C (debate + impl-champion, no monitor) was 9.26%; in arm D (full AMMO, with monitor) it was 3.74%. Arm D had zero retracted claims (zero false-positive ships), but it also had lower-magnitude wins. The monitor is, in part, a friction system. It shaves the upper tail.
-
-**Quality-adjusted aggregation.** Across the 100 V1 cells, the headline arm B vs arm A ship-rate gap of +20pp collapses to roughly +8pp once you remove noise-level ships and protocol inconsistencies. The story "more mechanisms = better" is not the story the data tells. The story is closer to "match the mechanism to the failure type, accept that some mechanisms have a cost on tasks where they aren't load-bearing, and don't pretend you can have all the upside without paying for it."
-
-We keep all of these mechanisms in production because, on the workloads we actually care about, the failure modes they prevent (dispatch-dead code, stale baselines, hallucinated ships) are dramatically more expensive than the conservatism tax they impose. But the framing matters: AMMO is a system of trade-offs, not a stack of unconditional improvements.
-
----
-
-## 8. Eval and Closing
-
-Beyond individual campaign telemetry, we exercise the system in two ways.
-
-**Conformance test suite.** Fifty-three scenarios across four test files exercise the orchestrator and each subagent against expected behaviors. The orchestrator alone has 21 scenarios covering resume, campaign evaluation, integration logic, non-negotiable violations, tiered profiling, and baseline promotion. Researcher, champion, and implementer/validator have their own files. Each scenario has a description, expected behavior, and reference output from a baseline run. New skill or hook changes are validated against the suite before deployment.
-
-**Controlled ablation (145 cells).** V1 (100 cells) and V2 (45 cells) hold deployment constant (Qwen3.5-4B / L40S / BF16 / TP=1) and vary one mechanism at a time. V2 specifically shares debate output across arms to eliminate debate-variance confounds; what varies is the monitor's presence and choice of model. All cells are audited for contamination — V1 excluded and re-ran 12% of cells for protocol violations. The numbers in this document are post-audit.
-
-**Causal analysis pipeline.** Post-campaign, an offline pipeline extracts events from session transcripts (JSONL), builds a causal DAG linking agent decisions to outcomes, scores nodes by attribution to the final result, and generates a postmortem. The findings feed back into the next iteration of skill and hook design. This is how, for instance, the Phase −1 target-claim waterfall was added in response to debate lock-in; how the two-invocation baseline pattern was added in response to profiler contamination; and how the monitor's CRITICAL pattern set grew to include `import vllm` path checks.
-
-The system we have today is not the system we started with. AMMO works because the failure modes are measured, the mechanisms are matched to them, and the costs are paid honestly. Hour-long autonomous campaigns were once aspirational; eight-hour campaigns are now routine. The bottleneck is no longer "can the agent stay on task" — it is "can we find the next class of optimization to teach it."
-
-That is, on balance, a good problem to have.
-
----
-
-## Appendix A: Real artifacts
-
-The walkthroughs in this document (Qwen3.6-35B-A3B-FP8 and Qwen3.6-27B-FP8
-campaigns) reference the artifact tree every campaign produces. In your own
-session it lives in the session worktree under `kernel_opt_artifacts/` and is
-surfaced by the server as the session report (`GET /sessions/{id}/report`).
-
-Key files for follow-up reading:
-
-- `state.json` — full campaign state machine
-- `REPORT.md` — final deliverable
-- `rounds/*/mining/bottleneck_analysis.md` — profiling-grounded component shares
-- `rounds/*/debate/summary.md` — debate outcomes with rubric scores
-- `rounds/*/tracks/*/validation_results.md` — per-track validation narratives
-- `rounds/*/audits/stage_*.md` — auditor findings
-- `rounds/*/sweeps/*/e2e_latency_results.json` — raw E2E measurements
-
-## Appendix B: Ablation data sources
-
-These are paths within the ablation-run artifact bundle released alongside the
-paper; they are not part of this repository.
-
-- `ammo-ablation-runs/v1/INVESTIGATION_SUMMARY.md` — V1 causal analysis
-- `ammo-ablation-runs/v1/per_task.md` — per-task ship rates
-- `ammo-ablation-runs/v1/DEBATE_VARIANCE_INVESTIGATION.md` — confound analysis
-- `ammo-ablation-runs/v2/V2_INVESTIGATION_REPORT.md` — V2 synthesis
-- `ammo-ablation-runs/v2/investigation_occ_r07.md` — signature datapoint
-- `ammo_monitoring_in_the_loop_v3.tex` — formal paper writeup
