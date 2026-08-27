@@ -1,5 +1,10 @@
 # AMMO Sessions Server
 
+> This code is being released solely for academic and scientific
+> reproducibility purposes, in support of the methods and findings described
+> in the associated publication. Pull requests are not being accepted in
+> order to maintain the code exactly as it was used in the paper.
+
 **AMMO (Agentic Model-on-Machine Optimizer)** is a multi-agent system that
 autonomously optimizes vLLM GPU kernels for a specific deployment — model,
 hardware, dtype, parallelism — over multi-hour unattended campaigns. This
