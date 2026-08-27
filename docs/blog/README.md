@@ -1,6 +1,6 @@
 <!-- Extracted from index.html with extract-md.js. Do not edit by hand; re-extract after the page changes. -->
 
-*This is the plain-text version of the interactive report at https://amazon-science.github.io/ammo/blog/. Figures appear here as their captions.*
+*This is the plain-text version of the interactive report at https://amazon-science.github.io/ammo/blog/. Figures appear here as their captions. The paper: [AMMO arXiv PDF](../AMMO_arXiv_Paper.pdf).*
 
 *Engineering report*
 
