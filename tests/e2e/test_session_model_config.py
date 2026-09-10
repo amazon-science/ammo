@@ -4,8 +4,7 @@
 
 Verifies that when a session is created in a running Docker container:
 1. The in-worktree settings.local.json carries the upgraded model + env.
-2. The /etc/claude-code/managed-settings.json (highest-precedence) carries
-   the same upgraded model + env.
+2. The managed settings match the source policy and preserve session model selection.
 3. The live claude CLI subprocess inside tmux has the operational env vars
    in its actual process environment (/proc/<pid>/environ).
 
@@ -35,7 +34,7 @@ def _auth_headers() -> dict:
 DEFAULT_SERVER_URL = "http://localhost:8000"
 SESSION_CREATION_TIMEOUT = 300
 ACTIVE_WAIT_TIMEOUT = 120
-CONTAINER_NAME = "ammo-server"
+CONTAINER_NAME = os.getenv("AMMO_TEST_CONTAINER", "ammo-server")
 
 EXPECTED_MODEL = "claude-opus-5"
 EXPECTED_ENV = {
@@ -148,18 +147,15 @@ class TestSessionModelConfig:
             assert env.get(key) == expected, \
                 f"settings.local.json env[{key}] expected {expected}, got {env.get(key)}"
 
-    def test_managed_settings_has_upgraded_model(self, shared_session):
-        """managed-settings.json (highest precedence) must carry the upgraded config."""
+    def test_managed_settings_preserve_session_model_selection(self, shared_session):
+        """Managed policy must match its source without overriding the session model."""
         raw = _read_container_file("/etc/claude-code/managed-settings.json")
         assert raw is not None, "managed-settings.json not found in container"
         settings = json.loads(raw)
 
-        assert settings.get("model") == EXPECTED_MODEL, \
-            f"managed model must be {EXPECTED_MODEL}, got {settings.get('model')}"
-        env = settings.get("env", {})
-        for key, expected in EXPECTED_ENV.items():
-            assert env.get(key) == expected, \
-                f"managed-settings env[{key}] expected {expected}, got {env.get(key)}"
+        source = Path(__file__).resolve().parents[2] / "ai_cli_session/managed-settings.json"
+        assert settings == json.loads(source.read_text()), "Managed policy differs from its source"
+        assert "model" not in settings, "Managed policy must not override the session model"
 
     def test_session_start_script_embeds_operational_env(self, shared_session):
         """The generated /tmp/<session_id>/start.sh must embed the operational env

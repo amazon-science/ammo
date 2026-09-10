@@ -36,9 +36,11 @@ legacy `stage_6` / `stage_7` backfill. Do not restate those branches here.
 Spawn a new `ammo-auditor` instance for every gate and for every re-audit. Never
 reuse an auditor. Never hand it an earlier audit's conclusions as facts.
 
+Call the native `agents.spawn_agent` tool directly, outside a code tool cell.
+
 ```python
-spawn_agent(
-    task_name=f"audit_{stage}_{round}_c{cycle}",
+agents.spawn_agent(
+    task_name=f"audit_{stage}_r{round}_c{cycle}",
     agent_type="ammo-auditor",
     fork_turns="none",
     message=f"""
@@ -47,17 +49,21 @@ spawn_agent(
     stage: {stage}       # stage_1 | stage_2 | stage_45 | stage_67
     round: {round}
     cycle: {cycle}
+    recovery_note_path: {artifact_dir}/recovery/{root_thread_id}/root/audit_{stage}_r{round}_c{cycle}/context.md
     """,
 )
 ```
 
+Use this task-name format exactly; an optional unique suffix may follow the cycle.
+Codex V2 can encrypt the message. The public task name therefore carries the stage,
+round, and cycle used by the hook, bound to the exact active campaign.
 Keep the message that thin. The auditor uses the exact supplied artifact directory
 and resolves canonical paths from it. Its authority and workflow come from
 `agents/ammo-auditor.md`; do not copy them into the dispatch prompt. What
 holds in every audit:
 
-- the auditor writes its assigned verdict, but cannot modify source, campaign
-  artifacts, or `state.json`;
+- the auditor writes its assigned verdict and recovery note; it cannot modify
+  source, other campaign artifacts, or `state.json`;
 - Phase 1 is an independent reconstruction, so the auditor must not read
   `references/audit-invariants.md` before it writes Phase 1;
 - the hook then injects the Phase 2 checklist, and Phase 2 cannot erase or
@@ -72,9 +78,10 @@ perform the gated transition.
 ## Started-At Stamping
 
 `audit.{stage}.started_at` and `.cycle` are stamped mechanically, not by the
-lead. `.codex/hooks/post_tool_use_guard.py` reads this dispatch message the
-moment the `ammo-auditor` spawn succeeds and writes both fields — this is why
-the message format above is load-bearing. `passed_at` stays lead-written,
+lead. `.codex/hooks/post_tool_use_guard.py` reads the public task-name route
+when the `ammo-auditor` spawn succeeds. Plaintext dispatch fields must agree
+with that route when present. The hook never decodes a private message.
+`passed_at` stays lead-written,
 after the lead verifies the final PASS verdict. For `schema_version >= 4.2`,
 state validation rejects a gate with `passed_at` set and `started_at` missing;
 backfill it with

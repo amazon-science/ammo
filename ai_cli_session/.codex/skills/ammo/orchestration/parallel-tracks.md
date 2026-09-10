@@ -42,6 +42,9 @@ Worktree build and source-ownership rules are governed by
 
 Supply these fields. Do not copy the implementer role into the prompt.
 
+Supply each child, including each monitor, its exact assigned recovery-note
+path from `references/context-recovery.md`. Use a distinct path for every task.
+
 - `op_id`, round number, artifact directory, absolute worktree path, and
   `worktree_branch`;
 - the typed selected-candidate entry and its `proposal_file`;

@@ -39,25 +39,31 @@ def _run_hook(script_name, payload, env=None):
 
 def _ammo_artifact_dir(tmp_path):
     artifact_dir = tmp_path / "kernel_opt_artifacts" / "cuda_vllm_kernel_target"
-    artifact_dir.mkdir(parents=True)
-    (artifact_dir / "state.json").write_text(
-        json.dumps({"campaign": {"status": "active"}}),
-        encoding="utf-8",
+    result = subprocess.run(
+        [sys.executable, str(HOOK_DIR.parent / "skills/ammo/scripts/new_target.py"),
+         "--artifact-dir", str(artifact_dir), "--model-id", "test-model",
+         "--hardware", "H100", "--dtype", "bf16"],
+        env=_clean_env(), text=True, capture_output=True, timeout=10,
     )
+    assert result.returncode == 0, result.stdout + result.stderr
+    state_path = artifact_dir / "state.json"
+    state = json.loads(state_path.read_text())
+    state["session_id"] = "session-a"
+    state["codex_thread_id"] = None
+    state["campaign"]["schema_version"] = "4.1"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
     return artifact_dir
 
 
 def _write_campaign_round_state(artifact_dir, current_round=1):
+    state = json.loads((artifact_dir / "state.json").read_text())
+    template = state["campaign"]["rounds"][0]
+    rounds = [json.loads(json.dumps(template)) for _ in range(current_round)]
+    for idx, round_state in enumerate(rounds):
+        round_state["round_id"] = idx + 1
+    state["campaign"].update(current_round=current_round, rounds=rounds)
     (artifact_dir / "state.json").write_text(
-        json.dumps(
-            {
-                "campaign": {
-                    "status": "active",
-                    "current_round": current_round,
-                    "rounds": [{"round_id": idx + 1} for idx in range(current_round)],
-                }
-            }
-        ),
+        json.dumps(state),
         encoding="utf-8",
     )
 
@@ -908,8 +914,9 @@ def test_codex_pretool_stage3_reconcile_gate_allows_champion_proposal_write(tmp_
     )
     proposal_path = (
         artifact_dir
+        / "rounds"
+        / "1"
         / "debate"
-        / "campaign_round_1"
         / "proposals"
         / "attention_tail_proposal.md"
     )
@@ -1026,8 +1033,9 @@ def test_codex_pretool_stage3_reconcile_exception_does_not_bypass_generic_critic
     )
     proposal_path = (
         artifact_dir
+        / "rounds"
+        / "1"
         / "debate"
-        / "campaign_round_1"
         / "proposals"
         / "attention_tail_proposal.md"
     )
@@ -1067,15 +1075,17 @@ def test_codex_pretool_stage3_reconcile_gate_only_allows_current_round_proposals
     )
     wrong_round_path = (
         artifact_dir
+        / "rounds"
+        / "1"
         / "debate"
-        / "campaign_round_1"
         / "proposals"
         / "stale_proposal.md"
     )
     current_round_path = (
         artifact_dir
+        / "rounds"
+        / "2"
         / "debate"
-        / "campaign_round_2"
         / "proposals"
         / "fresh_proposal.md"
     )
@@ -1160,8 +1170,9 @@ def test_codex_pretool_stage3_reconcile_gate_blocks_proposal_path_traversal_to_s
     )
     traversal_path = (
         artifact_dir
+        / "rounds"
+        / "1"
         / "debate"
-        / "campaign_round_1"
         / "proposals"
         / ".."
         / "summary.md"
@@ -1361,18 +1372,18 @@ def test_codex_session_start_is_quiet_at_repo_root_without_active_ammo_context()
 
 
 def test_codex_session_start_emits_context_when_ammo_configured(tmp_path):
+    artifact_dir = _ammo_artifact_dir(tmp_path)
     result = _run_hook(
         "session_start.py",
-        {"cwd": str(tmp_path)},
-        env=_clean_env(AMMO_SESSION_ID="session-a"),
+        {"cwd": str(tmp_path), "source": "compact"},
+        env=_clean_env(AMMO_SESSION_ID="session-a", AMMO_ARTIFACT_DIR=str(artifact_dir)),
     )
 
     payload = _json_stdout(result)
     assert payload["hookSpecificOutput"]["hookEventName"] == "SessionStart"
-    assert "AMMO Codex port available" in payload["hookSpecificOutput"]["additionalContext"]
-    assert "WARN blocks stage transitions" not in payload["hookSpecificOutput"]["additionalContext"]
-    assert "structured JSON is authoritative" not in payload["hookSpecificOutput"]["additionalContext"]
-    assert "Claude AMMO is the behavioral source of truth" in payload["hookSpecificOutput"]["additionalContext"]
+    context = payload["hookSpecificOutput"]["additionalContext"]
+    assert str(artifact_dir / "state.json") in context
+    assert (HOOK_DIR.parent / "skills/ammo/SKILL.md").read_text() in context
 
 
 def test_codex_stop_hook_allows_preflight_warn_without_stage0_block(tmp_path):
@@ -1409,7 +1420,7 @@ def test_codex_stop_hook_allows_preflight_warn_without_stage0_block(tmp_path):
     assert "WARN" not in payload["reason"]
 
 
-def test_codex_stop_hook_requires_two_to_three_debate_winners(tmp_path):
+def test_codex_stop_hook_requires_active_debate_to_advance(tmp_path):
     artifact_dir = tmp_path / "kernel_opt_artifacts" / "target"
     debate_dir = artifact_dir / "debate" / "campaign_round_1"
     debate_dir.mkdir(parents=True)
@@ -1452,7 +1463,7 @@ def test_codex_stop_hook_requires_two_to_three_debate_winners(tmp_path):
 
     payload = _json_stdout(result)
     assert payload["decision"] == "block"
-    assert "selected_winners must list 2-3 selected winners" in payload["reason"]
+    assert "still active at 3_debate" in payload["reason"]
 
 
 def test_codex_posttool_ignores_static_sweep_mentions_in_ammo_context(tmp_path):
@@ -1505,19 +1516,18 @@ def test_codex_posttool_advises_after_actual_sweep_command_in_ammo_context(tmp_p
     assert "Review run_purpose" in payload["hookSpecificOutput"]["additionalContext"]
 
 
-def test_codex_posttool_explains_evidence_complete_no_pass_is_exhausted_only(tmp_path):
+def test_codex_posttool_does_not_invent_validation_outcome_from_command_name(tmp_path):
     artifact_dir = _ammo_artifact_dir(tmp_path)
+    before = (artifact_dir / "state.json").read_bytes()
     result = _run_hook(
         "post_tool_use_guard.py",
         _pretool_payload("python .codex/skills/ammo/scripts/verify_validation_gates.py kernel_opt_artifacts/target"),
         env=_clean_env(AMMO_ARTIFACT_DIR=str(artifact_dir)),
     )
 
-    payload = _json_stdout(result)
-    context = payload["hookSpecificOutput"]["additionalContext"]
-    assert "EVIDENCE_COMPLETE_NO_PASS" in context
-    assert "mark the round EXHAUSTED" in context
-    assert "not candidate success" in context
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert (artifact_dir / "state.json").read_bytes() == before
 
 
 def test_codex_stop_hook_accepts_evidence_complete_no_pass_for_stage6_exhaustion(tmp_path):

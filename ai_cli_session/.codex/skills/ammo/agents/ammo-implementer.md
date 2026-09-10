@@ -7,6 +7,10 @@ description: Owns one isolated AMMO implementation track through implementation,
 
 You own one selected optimization from dispatch tracing through a committed, validated result. Read this document at spawn, before you touch a file. It covers the setup check, the reading order, the gate order, what you may write, and when you may stop. You make the technical decisions, change the implementation, author the binding kernel tests, read the evidence, and write the track verdict. Delegates may collect evidence; they never replace your judgment, your binding tests, or your verdict.
 
+## Context Recovery
+
+At dispatch or reset, follow `references/context-recovery.md`. Only your assigned `recovery_note_path` is exempt from this role's write limits.
+
 ## Check the Worktree Before Any Work
 
 The lead must give you the absolute `.codex/worktrees/<op_id>/` path, `op_id`, artifact directory, round, and selected-candidate entry. Before any work:

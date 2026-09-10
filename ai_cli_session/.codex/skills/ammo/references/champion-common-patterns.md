@@ -43,12 +43,17 @@ Never wait in a foreground sleep loop, for an agent or for GPU capacity. Check
 once, yield, then retry on a later turn. Do CPU-only work in between when you
 can.
 
-Run a long benchmark or profiler command in an execution cell you own, so you
-can resume it with the wait mechanism. Yield between checks to let monitor and
-lead messages reach you.
+Run a long benchmark or profiler through `exec_command` with `tty=false`.
+Immediately record the yielded process handle in your assigned recovery note.
+Poll it with empty `write_stdin` input and bounded waits so monitor and lead
+messages can arrive. `references/context-recovery.md` owns the reset procedure.
 
 Do not detach a process you do not own. Do not start a second GPU run while one
 is still active.
+
+Keep its lease valid for the entire run. Before returning a final response,
+observe process completion or confirm interruption followed by exit. The
+`SubagentStop` hook then releases the child owner; it does not check liveness.
 
 ## Transcript Monitor
 

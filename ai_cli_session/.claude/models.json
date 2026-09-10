@@ -33,7 +33,7 @@
   },
   "codex": {
     "_comment": "The generated CODEX_HOME config wins at runtime; the project copy is the template. Both must state the same model.",
-    "project_config": "gpt-5.6-sol",
-    "generated_config": "gpt-5.6-sol"
+    "project_config": "gpt-6-astra",
+    "generated_config": "gpt-6-astra"
   }
 }

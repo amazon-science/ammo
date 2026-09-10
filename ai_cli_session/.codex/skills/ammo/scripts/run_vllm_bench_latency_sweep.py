@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: CC-BY-NC-4.0
-# Portions adapted from vLLM (Apache-2.0); see ai_cli_session/.claude/skills/ammo/data/ATTRIBUTION.md
+# Portions adapted from vLLM (Apache-2.0); see ai_cli_session/.codex/skills/ammo/data/ATTRIBUTION.md
 """Run production-parity E2E latency sweeps via `vllm bench latency`.
 
 Inputs

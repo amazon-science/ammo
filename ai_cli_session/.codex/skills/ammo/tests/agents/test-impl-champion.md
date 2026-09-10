@@ -69,7 +69,7 @@ Grade responses against the "Expected Behavior" for each scenario.
 1. Read the full message without acting
 2. Assess: "Could this be wrong?" — contamination depends on worktree creation timing vs Track A's compilation timing, which requires investigating git history and build artifacts
 3. Classify as **Tier 3**: high complexity (cross-system reasoning about build artifacts, worktree isolation, and timing dependencies)
-4. Spawn an `ammo-delegate` with `model="gpt-5.5", reasoning_effort="high"` containing: the monitor's message, state.json campaign.rounds[current_round - 1].parallel_tracks.tracks, worktree creation timestamp, Track A's commit history
+4. Spawn an `ammo-delegate` using its inherited model and role reasoning effort containing: the monitor's message, state.json campaign.rounds[current_round - 1].parallel_tracks.tracks, worktree creation timestamp, Track A's commit history
 5. Wait for delegate's assessment
 
 **Anti-patterns (FAIL if observed)**:
@@ -107,7 +107,7 @@ Grade responses against the "Expected Behavior" for each scenario.
 **Expected behavior**:
 1. Recognize this is the 3rd fix attempt
 2. Auto-escalate to Tier 3 (min(3, 3) = 3)
-3. Spawn `ammo-delegate` with `model="gpt-5.5", reasoning_effort="high"` and the full context package: all three validator messages, both previous fix attempts and their rationale, the debate plan, current implementation diff
+3. Spawn `ammo-delegate` using its inherited model and role reasoning effort and the full context package: all three validator messages, both previous fix attempts and their rationale, the debate plan, current implementation diff
 4. Wait for high-reasoning Codex delegate's deep investigation
 
 **Anti-patterns (FAIL if observed)**:

@@ -1,15 +1,22 @@
 # AMMO Codex Port
 
 This README describes the actual Codex AMMO runtime under `ai_cli_session/.codex`.
-It intentionally covers only the campaign workflow and hook system. Claude AMMO
-is the shared-policy source of truth; the Codex skill, agents, hooks, schemas, and
-scripts in this directory add only Codex CLI/runtime adapters.
+It covers the campaign workflow and hook system. Shared policy originates in
+`ai_cli_session/_ammo_shared`; runtime-specific roles, hooks, and configuration
+remain in their respective variants.
 
 Canonical entrypoint: `.codex/skills/ammo/SKILL.md`.
 Runtime agents: `.codex/agents/*.toml`.
 Prompt/reference bodies: `.codex/skills/ammo/agents/*.md`.
 Hooks: `.codex/hooks.json` and `.codex/hooks/*.py`.
 Project Codex config: `.codex/config.toml`.
+
+## 1. Runtime Baseline
+
+The image and generated session configuration use Codex 0.153.4 and `gpt-6-astra`.
+Root reasoning remains high; roles inherit the root model/provider and retain their reasoning overrides.
+Experimental context management and tracked non-TTY commands are enabled. Unsupported account/provider paths retain ordinary compaction.
+See `skills/ammo/RUNTIME.md` for configuration and managed-installation requirements, and `skills/ammo/references/context-recovery.md` for task recovery.
 
 ## 2. Campaign Workflow
 
@@ -227,10 +234,10 @@ Codex AMMO hooks are Python runtime guards. `.codex/hooks.json` wires:
 
 | Event | Script | Matchers |
 | --- | --- | --- |
-| `SessionStart` | `hooks/session_start.py` | `startup|resume` |
+| `SessionStart` | `hooks/session_start.py` | `startup|resume|clear|compact` |
 | `PreCompact` | `hooks/pre_compact.py` | `manual|auto` |
-| `PreToolUse` | `hooks/pre_tool_use_guard.py` | `Bash`, edits, and MCP calls (native `spawn_agent` is not a supported PreToolUse target) |
-| `PostToolUse` | `hooks/post_tool_use_guard.py` | `Bash`, edits, and MCP calls |
+| `PreToolUse` | `hooks/pre_tool_use_guard.py` | `Bash`, edits, MCP calls, and native `spawn_agent` |
+| `PostToolUse` | `hooks/post_tool_use_guard.py` | `Bash`, edits, MCP calls, and native `spawn_agent` |
 | `SubagentStart` | `hooks/post_tool_use_guard.py` | child lifecycle start, cwd/monitor-order warning, and implementer-monitor ledger binding |
 | `SubagentStop` | `hooks/post_tool_use_guard.py` | child lifecycle stop |
 | `Stop` | `hooks/stop_gate_guard.py` | session stop attempts |
@@ -259,11 +266,9 @@ Hard blocks:
 - Pending monitor interventions with `ack_required` before the next intercepted
   non-inspection tool call.
 
-Native `spawn_agent` calls are not PreToolUse/PostToolUse targets in Codex.
-The guaranteed `SubagentStart` hook checks inherited cwd and owed-monitor
-ordering, records the lifecycle obligation, and injects blocking context into
-an out-of-order child. That child must return without campaign work until the
-parent corrects the issue and explicitly resumes it.
+Codex 0.153.4 runs native V2 tool hooks, including the flattened `agentsspawn_agent` name.
+The guard normalizes supported spawn names. `SubagentStart` also checks inherited cwd and owed-monitor ordering; both registration paths update the same monitor record.
+A lifecycle start cannot cancel the launch. An out-of-order child receives blocking context and must return until the parent corrects the issue.
 
 Warnings/additional context:
 
@@ -312,43 +317,28 @@ signal for long-running benchmark agents.
 
 ### 5.3 Stop: Block Premature Exit And Clean Up
 
-`stop_gate_guard.py` runs when Codex attempts to end the root turn/session. It
-finds the active AMMO artifact directory and nudges instead of blocking:
-Stage 7/7b receives a continuation nudge, and a terminal campaign without
-`REPORT.md` receives a report-generation nudge (repeat stop attempts re-nudge;
-this is intentional). Paused campaigns and subagent Stop payloads are allowed.
-Trusted server-session and Codex-thread identity mismatches remain blocking.
-On allowed stop the hook runs
-`gpu_reservation.py release-session --include-children` for the active session.
-`AMMO_ALLOW_STOP=1` skips the nudge and performs cleanup.
+`stop_gate_guard.py` checks root turn completion. Active stages block premature Stop; paused campaigns may stop.
+Terminal campaigns still require accepted, current report fact-check evidence. Repeated Stop attempts do not bypass that gate.
+A conflicting or ambiguous campaign binding blocks completion. An allowed Stop releases only the bound session's GPU owners.
+`AMMO_ALLOW_STOP=1` bypasses active-stage continuation checks, but preserves terminal report integrity checks.
 
-Auditor Phase 2 is enforced by the PostToolUse/SubagentStop lifecycle path,
-which mirrors Claude's agent-local audit hook without turning root Stop into an
-additional campaign-policy validator.
+Auditor Phase 2 completion is enforced separately through PostToolUse/SubagentStop.
+A child must observe each owned process exit before its final response. `SubagentStop` releases that owner without checking process liveness.
 
-### 5.4 PreCompact + SessionStart: Atomic Resume Checkpoints
+### 5.4 PreCompact + SessionStart: Exact Campaign Recovery
 
-`pre_compact.py` handles Codex 0.144.1's native `PreCompact` event for both
-`manual` and `auto` triggers. For a non-terminal AMMO campaign it safely resolves
-the campaign-local `state.json` and atomically writes
-`compaction_checkpoint.json`. The checkpoint records the canonical state path,
-current round, stage, campaign/round statuses, and active track identities. It
-does not copy derived cumulative-speedup values or obsolete Claude team fields.
-No AMMO state, or only terminal AMMO state, leaves unrelated compaction alone;
-an identified active campaign blocks compaction only when its checkpoint cannot
-be written safely.
+`pre_compact.py` handles `manual` and `auto` compaction for the root. It atomically writes a campaign checkpoint; children maintain only their assigned recovery notes.
+All hooks use one resolver: a validated explicit `AMMO_ARTIFACT_DIR`, or a unique trusted server/root identity match. No hook chooses a campaign by file age.
+An invalid explicit binding never falls back to another campaign. Ambiguous bindings require correction before mutation, compaction, or root completion.
 
-`session_start.py` consumes that checkpoint on `startup|resume`, injects a resume
-packet telling the lead to read `.codex/skills/ammo/SKILL.md`, reload the
-referenced `state.json`, and resume the current stage, then removes the consumed
-checkpoint. If it only finds `state.json`, it injects a lighter "AMMO
-Optimization Detected" context block.
+After root `compact` or `resume`, `session_start.py` injects the current entry skill and exact state pointer. Current status, stage, round, and tracks come from live state.
+Checkpoints remain advisory and are retained. Paused campaigns stay paused; terminal campaigns do not restart. A normal startup notice does not resume an old campaign.
 
-Codex also exposes `PostCompact`, but AMMO intentionally does not register it:
-the current PostCompact command output is universal status/message metadata and
-does not provide SessionStart's `additionalContext` channel. Durable
-`PreCompact` state plus the existing `SessionStart` resume packet is therefore
-the supported context-restoration path.
+Codex does not dispatch child SessionStart on compaction. Each role bootstrap therefore routes back to its role and assigned recovery note.
+The note preserves assignments, amendments, process handles, and evidence pointers. Live state, process status, monitor offsets, and hook-issued audit activation remain authoritative.
+
+AMMO does not register PostCompact because that event has no SessionStart-style additional-context output.
+Experimental context management and ordinary compaction use the same recovery contract.
 
 ### 5.5 Monitor Queue Delivery
 

@@ -7,7 +7,7 @@ description: Profile and optimize GPU kernels for vLLM inference on NVIDIA GPUs.
 
 AMMO is a staged, multi-agent GPU optimization campaign. It searches widely, builds each candidate in an isolated worktree, and ships only changes that are production-active, correct, and statistically faster.
 
-This file is the lead's contract. Role behavior lives in `agents/`, stage choreography in `orchestration/`, and domain policy in `references/`. Open a linked file when its stage or decision becomes active. Do not preload the whole corpus.
+The Lead Role and stage dispatch apply to the root orchestrator. Children keep their assigned role and shared constraints. Reading this file does not change a child's role. Read `agents/`, `orchestration/`, and `references/` only when their role, stage, or decision applies.
 
 ## Operating Principle
 
@@ -21,15 +21,15 @@ Every rule has exactly one owning document. Other files may say why or when the 
 4. The stage's `orchestration/*.md` file.
 5. The role's own `agents/*.md` file.
 
-Record any override on its own. Never bend raw evidence to make it look supported.
+Record an explicit user override and its scope. Never bend raw evidence to make it look supported. Do not add approval or testing gates. Complete the binding gates; add further tests when a change, failure, or unresolved question requires them.
 
 ## Lead Role
 
 You are the lead orchestrator. You scaffold, delegate, moderate, reconcile, update state, and enforce gates; you never implement an optimization and you never judge your own technical claim.
 
 - Keep every stage and role below; never skip or merge them for speed.
-- Read `state.json` before you act. Update stage, round, audit, and per-track fields at the moment they actually change.
-- Freeze every parameter the user set: model, hardware, dtype, TP/DP/EP, ISL/OSL, batch, maximum length, and serving flags. Any configuration change needs user approval.
+- Read the relevant state at dispatch, transitions, reconciliation, context recovery, and when related state changes. Update stage, round, audit, and per-track fields when they actually change.
+- Freeze every parameter the user set: model, hardware, dtype, TP/DP/EP, ISL/OSL, batch, maximum length, and serving flags. Changes to frozen parameters or approved scope need explicit user approval. Repairs within an approved candidate, including its declared mechanism flags under `references/validation-defaults.md`, remain authorized.
 - Spawn `ammo-investigator` when evidence is ambiguous, a failure is unexplained, or a consequential decision has no established answer.
 - Talk to live agents through agent messaging. Interrupt only a running turn that must stop; finished or idle agents need no teardown.
 - Never kill a process you do not own. Never use a GPU you have not reserved. `references/gpu-pool.md` is the only authority on GPU ownership.
@@ -56,7 +56,15 @@ Every stage and role below is mandatory when its trigger fires.
 
 `ammo-auditor` is mandatory after Stage 1 (`T_AUDIT_S1`), Stage 2 (`T_AUDIT_S2`), Stages 4-5 (`T_AUDIT_S45`), and Stages 6-7 (`T_AUDIT_S67`). Auditors may hand bounded evidence tasks to `ammo-delegate`. `ammo-investigator` is available at any uncertain fork or root-cause problem. Role aliases `ammo-impl-champion` and `ammo-report-writer` remain valid for resumed campaigns.
 
-**Codex multi-agent V2 contract (HARD):** every custom-role spawn uses `fork_turns="none"`; full-history forks inherit the parent's role and reject a custom `agent_type`. Every `task_name` is a unique lowercase path segment containing only `a-z`, `0-9`, and `_`. Reuse a persistent V2 path with `followup_task`; never recreate it with a second `spawn_agent`. Put the campaign round and a bounded attempt/task suffix in any name that can recur. When a business identifier such as `OP-001` names a track, derive `task_slug = re.sub(r"[^a-z0-9_]+", "_", op_id.lower()).strip("_")` for the task name, and keep the raw `op_id` in state, prompts, monitor ledgers, and artifact paths. Root-to-child and cross-sibling messages use canonical absolute paths such as `/root/implementer_r1_op_001`; child-local descendants may use relative names. `ammo-champion`, `ammo-implementer`, and `ammo-transcript-monitor` may be reused with `followup_task` while their round remains active. `ammo-researcher`, `ammo-auditor`, `ammo-investigator`, `ammo-delegate`, `ammo-report`, and `ammo-resolver` are normally fresh bounded tasks. `state.json.team_name` is descriptive bookkeeping, never a Codex runtime handle.
+**Codex multi-agent V2 contract (HARD):** use `fork_turns="none"` for role independence, unique lowercase task names, and `followup_task` for reused tasks. `references/context-recovery.md` owns naming, routing, role reuse, and reset rules. Read it before dispatch.
+
+### Child Dispatch and Context Recovery
+
+Call native `agents.spawn_agent` and agent messaging tools directly, outside execution/code cells. Batch only independent actions.
+
+Every child receives its assignment and exact `recovery_note_path` under `{artifact_dir}/recovery/{root_thread_id}/{task_path_without_leading_slash}/context.md`. Use `state.json.codex_thread_id`. Grant every role permission to write only its assigned note, in addition to normal outputs.
+
+At dispatch or reset, follow `references/context-recovery.md`: preserve amendments and reconcile live process handles, monitor offsets, state, and hook-issued audit activation.
 
 ### Stage 1: Baseline Capture
 

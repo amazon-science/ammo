@@ -72,7 +72,10 @@ def test_build_extra_env_writes_trusted_codex_home(tmp_path, monkeypatch):
     assert env["AMMO_GPU_RES_DIR"] == "/tmp/ammo_gpu_res_session-a"
     raw_config = (codex_home / "config.toml").read_text()
     config = tomllib.loads(raw_config)
-    assert config["model"] == "gpt-5.6-sol"
+    assert config["model"] == "gpt-6-astra"
+    assert config["model_reasoning_effort"] == "high"
+    assert config["features"]["context_management"]["experimental_mode"] is True
+    assert config["features"]["unified_exec"] is True
     # No alternate model provider may be active — the generated config must use
     # the default provider so a session never depends on external routing setup.
     assert "model_provider" not in config

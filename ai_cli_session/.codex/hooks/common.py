@@ -31,7 +31,22 @@ def find_repo_root(cwd=None):
     return start
 def command_from_payload(payload):
     ti=payload.get('tool_input') or payload.get('toolInput') or {}; return ti.get('command','') if isinstance(ti,dict) else ''
-def tool_name_from_payload(payload): return str(payload.get('tool_name') or payload.get('toolName') or '')
+def tool_name_from_payload(payload):
+    """Normalize supported native spawn names, including Codex V2 flattening."""
+    name = str(payload.get('tool_name') or payload.get('toolName') or '')
+    if name in {
+        'Agent', 'spawn_agent', 'functions.spawn_agent', 'collaboration.spawn_agent',
+        'agents.spawn_agent', 'agentsspawn_agent',
+    } or name.endswith('__spawn_agent'):
+        return 'spawn_agent'
+    return name
+
+def is_child_agent_payload(payload):
+    return bool(
+        payload.get('agent_id') or payload.get('agentId')
+        or payload.get('agent_type') or payload.get('agentType')
+        or os.environ.get('CODEX_SUBAGENT') == '1'
+    )
 def _session_identity_path():
     root=Path(os.environ.get('AMMO_GPU_RES_DIR') or '/tmp/ammo_gpu_res').expanduser()
     return root/'codex_hook_session.json'
@@ -264,28 +279,75 @@ def complete_monitor_pair(repo,payload,monitor_name,artifact_dir):
     target['status']='satisfied'; target['summary_path']=str(chosen); target['summary_sha256']=hashlib.sha256(chosen.read_bytes()).hexdigest(); target['final_summary']=final.get('summary')
     _write_monitor_pairs(path,records)
     return True
-def candidate_artifact_dirs(repo):
-    dirs=[]; env=os.environ.get('AMMO_ARTIFACT_DIR')
-    if env: dirs.append((repo/Path(env)).resolve() if not Path(env).is_absolute() else Path(env).resolve())
-    root=repo/'kernel_opt_artifacts'
-    if root.exists(): dirs += [p.parent for p in sorted(root.glob('**/state.json'),key=lambda p:p.stat().st_mtime,reverse=True)]
-    seen=[]
-    for d in dirs:
-        if d not in seen: seen.append(d)
-    return seen
-def active_artifact_dir(repo,payload=None):
-    payload=payload if isinstance(payload,dict) else {}
-    expected=trusted_server_session_identity(payload)
-    candidates=candidate_artifact_dirs(repo)
-    if expected:
-        for d in candidates:
-            state=load_json(d/'state.json')
-            if isinstance(state,dict) and str(state.get('session_id') or state.get('sessionId') or '') == expected:
-                return d
+class CampaignResolutionError(ValueError):
+    """Campaign identity is unsafe, conflicting, or ambiguous."""
+
+
+class CampaignStateError(CampaignResolutionError):
+    """The exact state is unreadable; inspection must remain possible."""
+
+
+def _safe_campaign_state(directory):
+    candidate = Path(os.path.abspath(directory)) / 'state.json'
+    if any(path.is_symlink() for path in (candidate, *candidate.parents)):
+        raise CampaignResolutionError(f'unsafe symlink campaign state: {candidate}')
+    if not candidate.exists():
         return None
-    for d in candidates:
-        if (d/'state.json').exists(): return d
-    return None
+    state = load_json(candidate)
+    if not isinstance(state, dict):
+        raise CampaignStateError(f'unreadable campaign state: {candidate}')
+    return candidate.parent, state
+
+
+def _campaign_identity_matches(state, payload, explicit=False):
+    server = trusted_server_session_identity(payload)
+    thread = trusted_codex_thread_identity(payload)
+    state_server = str(state.get('session_id') or state.get('sessionId') or '')
+    state_thread = str(state.get('codex_thread_id') or '')
+    if server and state_server and server != state_server:
+        return False
+    if thread and state_thread and thread != state_thread:
+        return False
+    if explicit:
+        return True
+    return bool(
+        (server and state_server == server)
+        or (thread and state_thread == thread)
+        or (not server and not state_thread and thread and state_server == thread)
+    )
+
+
+def active_artifact_dir(repo, payload=None):
+    """Resolve an exact binding or unique trusted identity; never use recency."""
+    payload = payload if isinstance(payload, dict) else {}
+    explicit = os.environ.get('AMMO_ARTIFACT_DIR')
+    if explicit:
+        raw = Path(explicit).expanduser()
+        record = _safe_campaign_state(raw if raw.is_absolute() else repo / raw)
+        # A new target may not have state yet. Never fall back to another target.
+        if record is None:
+            return None
+        directory, state = record
+        if not _campaign_identity_matches(state, payload, explicit=True):
+            raise CampaignResolutionError('AMMO_ARTIFACT_DIR conflicts with trusted session/root identity')
+        return directory
+
+    matches = []
+    for candidate in sorted((repo / 'kernel_opt_artifacts').glob('**/state.json')):
+        try:
+            record = _safe_campaign_state(candidate.parent)
+        except CampaignResolutionError:
+            continue
+        if record is None:
+            continue
+        directory, state = record
+        if isinstance(state.get('campaign'), dict) and _campaign_identity_matches(state, payload):
+            matches.append(directory)
+    if len(matches) > 1:
+        raise CampaignResolutionError(
+            'multiple campaigns match this session/root; set AMMO_ARTIFACT_DIR to the exact campaign'
+        )
+    return matches[0] if matches else None
 def load_json(p):
     try: return json.loads(p.read_text(encoding='utf-8'))
     except Exception: return None

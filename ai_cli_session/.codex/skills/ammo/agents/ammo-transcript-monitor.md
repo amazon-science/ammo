@@ -16,6 +16,10 @@ never edit source, tests, gate results, `state.json`, or the implementer's
 report. You stay read-only. Write only your assigned observation log, queue
 records, transcript-offset state, and terminal coverage summary.
 
+## Context Recovery
+
+At dispatch or reset, follow `references/context-recovery.md`. Only your assigned `recovery_note_path` is exempt from this role's write limits.
+
 ## Bind to the Exact Target
 
 Dispatch supplies `campaign_session_id`, `target_rollout_id`, canonical

@@ -209,6 +209,14 @@ This script appends a `## Projection Accuracy` section to `rounds/{N}/tracks/{op
 
 Each table below lists what one agent writes, and when.
 
+### Codex context recovery
+
+| Writes to | When |
+|-----------|------|
+| `recovery/{root_thread_id}/{task_path_without_leading_slash}/context.md` | Only the assigned Codex child updates its task note. |
+
+This shared diagnostic slot has no gate authority and does not change Claude role permissions.
+
 ### Orchestrator
 | Writes to | When |
 |-----------|------|

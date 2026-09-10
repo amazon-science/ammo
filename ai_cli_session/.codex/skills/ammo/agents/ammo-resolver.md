@@ -7,6 +7,10 @@ description: Resolve merge conflicts when cherry-picking GATED_PASS tracks in AM
 
 The orchestrator spawns you in Stage 6 when a cherry-pick of two accepted tracks conflicts. You produce one merge that weakens neither track. Read this before you edit a conflicted file. Preserve each optimization's intent, activation boundaries, rollback controls, and validation obligations.
 
+## Context Recovery
+
+At dispatch or reset, follow `references/context-recovery.md`. Only your assigned `recovery_note_path` is exempt from this role's write limits.
+
 ## Environment (BLOCKING)
 
 Use the prebuilt `.venv`. Never install a package and never create a second environment. If an import fails, report the failure instead of repairing the environment. Reserve GPU work through `references/gpu-pool.md`.

@@ -37,7 +37,7 @@ def _auth_headers() -> dict:
 DEFAULT_SERVER_URL = "http://localhost:8000"
 SESSION_CREATION_TIMEOUT = 300  # seconds (editable_install can take 200s+ under load)
 ACTIVE_WAIT_TIMEOUT = 120  # seconds to wait for session to become active
-CONTAINER_NAME = "ammo-server"
+CONTAINER_NAME = os.getenv("AMMO_TEST_CONTAINER", "ammo-server")
 
 
 # ---------------------------------------------------------------------------
@@ -220,26 +220,27 @@ class TestAmmoSkillDeployment:
         content = _read_container_file(path)
         assert content is not None, f"Could not read {path}"
 
-        assert "Worktree Isolation" in content, (
-            "ammo-impl-champion.md should contain 'Worktree Isolation'"
-        )
+        source = Path(__file__).resolve().parents[2] / "ai_cli_session/.claude/agents/ammo-impl-champion.md"
+        assert content == source.read_text(), "Deployed implementation role differs from the source template"
+        assert "isolation: worktree" in content
         assert "EnterWorktree" in content, (
             "ammo-impl-champion.md should contain 'EnterWorktree'"
         )
 
-    def test_ammo_impl_validator_deployed(self, shared_session):
-        """agents/ammo-impl-validator.md must exist and contain key content."""
+    def test_ammo_auditor_deployed(self, shared_session):
+        """The current independent audit role must be deployed from its source."""
         session_id, headers, claude_dir = shared_session
 
-        path = f"{claude_dir}/agents/ammo-impl-validator.md"
+        path = f"{claude_dir}/agents/ammo-auditor.md"
         assert _file_exists_in_container(path), f"File not found: {path}"
 
         content = _read_container_file(path)
         assert content is not None, f"Could not read {path}"
 
-        assert "Adversarial Verification" in content, (
-            "ammo-impl-validator.md should contain 'Adversarial Verification'"
-        )
+        source = Path(__file__).resolve().parents[2] / "ai_cli_session/.claude/agents/ammo-auditor.md"
+        assert content == source.read_text(), "Deployed auditor differs from the source template"
+        assert "inject-audit-phase2.sh" in content
+        assert "audit-phase2-guard.sh" in content
 
     def test_worktree_hook_has_base_repo(self, shared_session):
         """hooks/worktree-create-with-build.sh must contain BASE_REPO logic."""
@@ -269,8 +270,8 @@ class TestAmmoSkillDeployment:
             "ammo-stop-guard.sh should contain '7_campaign_eval' stage nudge"
         )
 
-    def test_skill_md_has_config_fidelity(self, shared_session):
-        """skills/ammo/SKILL.md must contain Configuration Fidelity section."""
+    def test_skill_md_preserves_target_contract(self, shared_session):
+        """The deployed skill must retain the full source target contract."""
         session_id, headers, claude_dir = shared_session
 
         path = f"{claude_dir}/skills/ammo/SKILL.md"
@@ -279,6 +280,6 @@ class TestAmmoSkillDeployment:
         content = _read_container_file(path)
         assert content is not None, f"Could not read {path}"
 
-        assert "Configuration Fidelity" in content, (
-            "skills/ammo/SKILL.md should contain 'Configuration Fidelity'"
-        )
+        source = Path(__file__).resolve().parents[2] / "ai_cli_session/.claude/skills/ammo/SKILL.md"
+        assert content == source.read_text(), "Deployed entry skill differs from the source template"
+        assert "target.json" in content and "frozen target contract" in content

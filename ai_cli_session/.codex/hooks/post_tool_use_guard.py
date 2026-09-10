@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 from common import (
+    CampaignResolutionError,
+    CampaignStateError,
     active_artifact_dir,
     additional_context,
     command_from_payload,
@@ -219,7 +221,7 @@ def _resolve_payload_path(raw: str) -> Path:
     return Path(os.path.abspath(cwd / path))
 
 
-def _candidate_paths() -> list[Path]:
+def _candidate_paths(include_active_state: bool = True) -> list[Path]:
     paths: list[Path] = []
     tool_input = _tool_input()
     for key in (
@@ -274,7 +276,7 @@ def _candidate_paths() -> list[Path]:
             artifact = active_artifact_dir(find_repo_root(payload.get("cwd")), payload)
             if artifact is not None:
                 paths.append((artifact / "state.json").resolve())
-    elif cmd and not is_static_inspection_command(cmd) and not any(
+    elif include_active_state and cmd and not is_static_inspection_command(cmd) and not any(
         path.name == "state.json" for path in paths
     ):
         # Unknown helpers may mutate the active campaign internally without
@@ -487,6 +489,44 @@ def _has_phase2_section(path: Path) -> bool:
         return False
 
 
+def _has_completed_phase1(path: Path) -> bool:
+    """Require the role's Phase 1 verdict, findings, and summary before activation."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if not re.search(
+        r"(?m)^\*\*Phase 1 preliminary\*\*:\s*(?:PASS|BLOCKED|NEEDS_INVESTIGATION)\s*$",
+        text,
+    ):
+        return False
+    phase1 = re.search(r"(?ms)^## Phase 1\b[^\n]*\n(.*?)(?=^## |\Z)", text)
+    summary = re.search(r"(?ms)^## Summary\s*\n(.+?)(?=^## |\Z)", text)
+    if not phase1 or not summary:
+        return False
+    findings = re.sub(r"(?m)^\s*#{1,6}\s.*$", "", phase1.group(1)).strip()
+    return bool(findings and summary.group(1).strip())
+
+
+def _audit_write_paths() -> list[Path]:
+    """Keep actual edit targets separate from conservative state-inspection paths."""
+    tool = tool_name_from_payload(payload)
+    if tool == "apply_patch":
+        targets = []
+        for text in _payload_texts():
+            for raw in re.findall(r"(?m)^\*\*\* (?:Add|Update) File:\s*(.+)$", text):
+                targets.append(_resolve_payload_path(raw))
+        return targets
+    if tool in {"", "Write", "Edit"} or re.search(r"(?:__|\.)(?:write_file|edit_file)$", tool):
+        target = next(
+            (_tool_input().get(key) for key in ("file_path", "filePath", "path")
+             if isinstance(_tool_input().get(key), str)),
+            None,
+        )
+        return [_resolve_payload_path(target)] if target else []
+    return []
+
+
 def _audit_phase2_messages(repo: Path, paths: list[Path]) -> list[str]:
     messages: list[str] = []
     if not _is_auditor_payload():
@@ -495,8 +535,8 @@ def _audit_phase2_messages(repo: Path, paths: list[Path]) -> list[str]:
     if not invariants.exists():
         return messages
 
-    for path in paths:
-        if not _is_audit_verdict_path(path) or _has_phase2_section(path):
+    for path in _audit_write_paths():
+        if not _is_audit_verdict_path(path) or _has_phase2_section(path) or not _has_completed_phase1(path):
             continue
         session_id = session_id_from_payload(payload, repo) or "unknown"
         agent_id = _agent_id_for_phase2()
@@ -862,6 +902,34 @@ def _parse_audit_dispatch(text: str) -> dict | None:
     }
 
 
+def _audit_dispatch_for_spawn(repo: Path) -> dict | None:
+    """Bind public V2 routing metadata without decoding the private message."""
+    text = _spawn_prompt_text()
+    explicit = _parse_audit_dispatch(text)
+    # Incomplete plaintext routing must not silently fall back to a task name.
+    if explicit is None and re.search(r"(?m)^\s*(?:task|artifact_dir|stage|round|cycle)\s*:", text):
+        return None
+    name = str(_tool_input().get("task_name") or "")
+    match = re.fullmatch(
+        r"audit_(stage_(?:1|2|45|67))_r([1-9][0-9]*)_c([1-9][0-9]*)(?:_[a-z0-9_]+)?",
+        name,
+    )
+    routed = None
+    if match:
+        artifact = active_artifact_dir(repo, payload)
+        if artifact is None:
+            return None
+        routed = {
+            "artifact_dir": str(artifact),
+            "stage": match.group(1),
+            "round": int(match.group(2)),
+            "cycle": int(match.group(3)),
+        }
+    if explicit is not None and routed is not None and explicit != routed:
+        return None
+    return explicit if explicit is not None else routed
+
+
 def _spawn_call_failed() -> bool:
     """True when the spawn tool reported an error, so nothing was launched."""
     response = payload.get("tool_response")
@@ -907,8 +975,14 @@ def _stamp_audit_started(repo: Path) -> str | None:
     try:
         if _spawn_call_failed():
             return None
-        dispatch = _parse_audit_dispatch(_spawn_prompt_text())
+        dispatch = _audit_dispatch_for_spawn(repo)
         if dispatch is None:
+            return None
+        artifact = active_artifact_dir(repo, payload)
+        if artifact is None or Path(dispatch["artifact_dir"]) != artifact:
+            return None
+        # Replayed completion events must preserve the original audit start.
+        if _audit_gate_is_stamped(dispatch):
             return None
         engine = _state_engine_path()
         if not engine.is_file():
@@ -1109,6 +1183,26 @@ def _release_lifecycle_gpus(owner: str) -> None:
         )
 
 
+try:
+    active_artifact_dir(find_repo_root(payload.get("cwd")), payload)
+except CampaignResolutionError as exc:
+    event = str(payload.get("hook_event_name") or payload.get("hookEventName") or "PostToolUse")
+    # A damaged state must remain readable. Non-command writes outside the
+    # campaign also need no campaign validation (their content is not a target).
+    if isinstance(exc, CampaignStateError) and event == "PostToolUse":
+        inspection = bool(cmd) and is_static_inspection_command(cmd)
+        if not cmd and tool_name_from_payload(payload) != "spawn_agent":
+            inspection = not any(_is_kernel_artifact_path(path) for path in _candidate_paths())
+            if tool_name_from_payload(payload).lower() in {"read", "mcp__filesystem__read_file"}:
+                inspection = True
+        if inspection:
+            raise SystemExit(0)
+    _block_posttool(
+        f"AMMO campaign binding must be resolved: {exc}",
+        event,
+    )
+    raise SystemExit(0)
+
 _release_reserved_gpus(cmd)
 
 messages = []
@@ -1151,8 +1245,7 @@ if event_name == "SubagentStart":
             + " --no-auto-release for this subagent's persistent GPU reservations. "
             "The SubagentStop lifecycle hook releases that exact owner."
         )
-if event_name == "SubagentStart" or tool_name in {"Agent", "spawn_agent", "functions.spawn_agent", "collaboration.spawn_agent"} \
-        or tool_name.endswith("__spawn_agent"):
+if event_name == "SubagentStart" or tool_name == "spawn_agent":
     spawned_role, spawned_name = _spawn_role_and_name()
     if event_name == "SubagentStart":
         messages.extend(_subagent_start_policy_messages(repo, spawned_role, spawned_name))
@@ -1217,7 +1310,9 @@ except Exception as exc:
     if os.environ.get("AMMO_DEBUG_HOOKS") == "1":
         messages.append(f"PostToolUse AMMO path detection skipped due to hook error: {exc}")
 
-has_artifact_write = any(_is_kernel_artifact_path(path) for path in touched_paths)
+# The active state appended for conservative validation is not proof that an
+# unrelated command wrote a campaign artifact.
+has_artifact_write = any(_is_kernel_artifact_path(path) for path in _candidate_paths(include_active_state=False))
 is_ammo_command = (
     command_invokes_gpu_heavy_tool(cmd)
     or "gpu_reservation.py" in cmd

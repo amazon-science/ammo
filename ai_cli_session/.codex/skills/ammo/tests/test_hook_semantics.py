@@ -655,7 +655,7 @@ def test_session_start_holds_paused_campaign_without_checkpoint(tmp_path):
     assert "Resume current stage" not in result.stdout
 
 
-def test_session_start_hook_matches_claude_compaction_resume_context(tmp_path):
+def test_session_start_uses_live_state_and_retains_compaction_checkpoint(tmp_path):
     repo = _hook_repo(tmp_path)
     artifact = _active_stage1_artifact(repo)
     (artifact / "compaction_checkpoint.json").write_text(
@@ -673,13 +673,13 @@ def test_session_start_hook_matches_claude_compaction_resume_context(tmp_path):
     )
     env = _env(repo, artifact)
 
-    result = _run_hook("session_start.py", {"cwd": str(repo)}, env)
+    result = _run_hook("session_start.py", {"cwd": str(repo), "source": "compact"}, env)
 
     assert result.returncode == 0
-    assert "Session Resumed After Compaction" in result.stdout
-    assert "Parallel tracks (2 active)" in result.stdout
-    assert "test-model" in result.stdout
-    assert not (artifact / "compaction_checkpoint.json").exists()
+    assert "AMMO Root Context Restored" in result.stdout
+    assert "Parallel tracks (2 active)" not in result.stdout
+    assert "Stage: 1_baseline" in result.stdout
+    assert (artifact / "compaction_checkpoint.json").exists()
 
 
 def test_session_start_holds_paused_campaign_after_compaction(tmp_path):
@@ -700,7 +700,7 @@ def test_session_start_holds_paused_campaign_after_compaction(tmp_path):
     assert result.returncode == 0
     assert "AMMO Campaign Paused" in result.stdout
     assert "Resume current stage" not in result.stdout
-    assert not checkpoint.exists()
+    assert checkpoint.exists()
 
 
 def test_lifecycle_hooks_do_not_register_codex_only_prompt_reminder():
@@ -1148,7 +1148,7 @@ def test_post_hook_injects_auditor_phase2_after_phase1_verdict_write(tmp_path):
     _write_audit_invariants(repo)
     verdict = artifact / "rounds" / "1" / "audits" / "stage_1.md"
     verdict.parent.mkdir(parents=True, exist_ok=True)
-    verdict.write_text("# Audit Verdict\n\n## Phase 1 - Independent Reconstruction\n", encoding="utf-8")
+    verdict.write_text("# Audit Verdict\n\n**Phase 1 preliminary**: BLOCKED\n\n## Phase 1 - Independent Reconstruction\nMissing baseline evidence.\n\n## Summary\nHALTED: one blocking finding.\n", encoding="utf-8")
     env = _env(repo, artifact)
     payload = {
         "cwd": str(repo),
@@ -1197,7 +1197,7 @@ def test_post_hook_phase2_injection_is_auditor_local(tmp_path):
     _write_audit_invariants(repo)
     verdict = artifact / "rounds" / "1" / "audits" / "stage_1.md"
     verdict.parent.mkdir(parents=True, exist_ok=True)
-    verdict.write_text("# Audit Verdict\n\n## Phase 1 - Independent Reconstruction\n", encoding="utf-8")
+    verdict.write_text("# Audit Verdict\n\n**Phase 1 preliminary**: BLOCKED\n\n## Phase 1 - Independent Reconstruction\nMissing baseline evidence.\n\n## Summary\nHALTED: one blocking finding.\n", encoding="utf-8")
     env = _env(repo, artifact)
     payload = {
         "cwd": str(repo),
@@ -1221,7 +1221,7 @@ def test_subagent_stop_blocks_auditor_until_hook_injected_phase2_is_written(tmp_
     constraints.write_text("# Constraints\n", encoding="utf-8")
     verdict = artifact / "rounds" / "1" / "audits" / "stage_1.md"
     verdict.parent.mkdir(parents=True, exist_ok=True)
-    verdict.write_text("# Audit Verdict\n\n## Phase 1 - Independent Reconstruction\n", encoding="utf-8")
+    verdict.write_text("# Audit Verdict\n\n**Phase 1 preliminary**: BLOCKED\n\n## Phase 1 - Independent Reconstruction\nMissing baseline evidence.\n\n## Summary\nHALTED: one blocking finding.\n", encoding="utf-8")
     env = _env(repo, artifact)
     post_payload = {
         "cwd": str(repo),

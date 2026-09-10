@@ -28,8 +28,9 @@ DEVELOPMENT_MODE=false
 # Session service configuration
 SESSION_DATA_DIR="${SESSION_DATA_DIR:-$HOME/.ammo-server/sessions}"
 SESSION_REPOS_DIR="${SESSION_REPOS_DIR:-$HOME/.ammo-server/repos}"
-TERMINAL_PORT_START=8001
-TERMINAL_PORT_END=8100
+TERMINAL_PORT_START=${TERMINAL_PORT_START:-8001}
+TERMINAL_PORT_END=${TERMINAL_PORT_END:-8100}
+AMMO_CCACHE_VOLUME=${AMMO_CCACHE_VOLUME:-ammo-ccache}
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -226,7 +227,7 @@ DOCKER_CMD="$DOCKER_CMD -v ${SESSION_REPOS_DIR}:/data/repos"
 
 # Mount ccache volume for on-demand vLLM builds within sessions
 # Named volume persists across container restarts
-DOCKER_CMD="$DOCKER_CMD -v ammo-ccache:/home/session_user/.ccache"
+DOCKER_CMD="$DOCKER_CMD -v ${AMMO_CCACHE_VOLUME}:/home/session_user/.ccache"
 
 # Add session service environment variables
 DOCKER_CMD="$DOCKER_CMD -e SESSION_DATA_DIR=/data/sessions"

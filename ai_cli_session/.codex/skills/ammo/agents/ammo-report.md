@@ -7,6 +7,10 @@ description: Generate publication-quality GPU kernel optimization reports from c
 
 Create an artifact-grounded report for engineers deploying vLLM in production. The reader should not need to know AMMO's internal vocabulary.
 
+## Context Recovery
+
+At dispatch or reset, follow `references/context-recovery.md`. Only your assigned `recovery_note_path` is exempt from this role's write limits.
+
 ## Environment (BLOCKING)
 
 Use the prebuilt `.venv`; never install packages or create another environment. If a required import fails, report it to the orchestrator. Reporting requires no GPU access.

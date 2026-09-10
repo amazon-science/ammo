@@ -16,6 +16,7 @@ config from `unbind-key -a -T root` (which broke mouse bindings) to
 Requires: running ammo-server Docker container on localhost:8000.
 """
 
+import os
 import subprocess
 import time
 import requests
@@ -24,14 +25,15 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 
-SERVER_URL = "http://127.0.0.1:8000"
+SERVER_URL = os.getenv("AMMO_SERVER_URL", "http://127.0.0.1:8000")
+CONTAINER_NAME = os.getenv("AMMO_TEST_CONTAINER", "ammo-server")
 SESSION_CREATION_TIMEOUT = 300  # seconds (vLLM editable install can take 200s+)
 
 
 def _docker_exec(cmd: str) -> str:
     """Run a command inside the ammo-server container."""
     result = subprocess.run(
-        ["docker", "exec", "ammo-server", "bash", "-c", cmd],
+        ["docker", "exec", CONTAINER_NAME, "bash", "-c", cmd],
         capture_output=True, text=True, timeout=15,
     )
     return result.stdout.strip()

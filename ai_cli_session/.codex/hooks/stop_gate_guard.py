@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from common import (
+    CampaignResolutionError,
     active_artifact_dir,
     block_stop,
     find_repo_root,
@@ -215,7 +216,11 @@ def main() -> None:
         raise SystemExit(0)
 
     repo = find_repo_root(payload.get("cwd"))
-    artifact_dir = active_artifact_dir(repo, payload)
+    try:
+        artifact_dir = active_artifact_dir(repo, payload)
+    except CampaignResolutionError as exc:
+        block_stop(f"AMMO campaign binding must be resolved before stopping: {exc}")
+        raise SystemExit(0)
     if artifact_dir is None:
         raise SystemExit(0)
     state = load_json(artifact_dir / "state.json")

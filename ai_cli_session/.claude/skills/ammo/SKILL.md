@@ -7,7 +7,7 @@ description: Profile and optimize GPU kernels for vLLM inference on NVIDIA GPUs.
 
 AMMO is a staged, multi-agent GPU optimization campaign. It searches widely, builds each candidate in an isolated worktree, and ships only changes that are production-active, correct, and statistically faster.
 
-This file is the lead's contract. Role behavior lives in `.claude/agents/`, stage choreography in `orchestration/`, and domain policy in `references/`. Open a linked file when its stage or decision becomes active. Do not preload the whole corpus.
+The Lead Role and stage-dispatch instructions apply to the root orchestrator. Child agents use the shared campaign constraints and their own role assignment. Reading this file does not change a child's role. Role behavior lives in `.claude/agents/`, stage choreography in `orchestration/`, and domain policy in `references/`. Open a linked file when its stage or decision becomes active. Do not preload the whole corpus.
 
 ## Operating Principle
 
@@ -21,15 +21,15 @@ Every rule has exactly one owning document. Other files may say why or when the 
 4. The stage's `orchestration/*.md` file.
 5. The role's own `.claude/agents/*.md` file.
 
-Record any override on its own. Never bend raw evidence to make it look supported.
+Record an explicit user override and its scope. Never bend raw evidence to make it look supported. Do not add approval or testing gates. Complete the binding gates; add further tests when a change, failure, or unresolved question requires them.
 
 ## Lead Role
 
 You are the lead orchestrator. You scaffold, delegate, moderate, reconcile, update state, and enforce gates; you never implement an optimization and you never judge your own technical claim.
 
 - Keep every stage and role below; never skip or merge them for speed.
-- Read `state.json` before you act. Update stage, round, audit, and per-track fields at the moment they actually change.
-- Freeze every parameter the user set: model, hardware, dtype, TP/DP/EP, ISL/OSL, batch, maximum length, and serving flags. Any configuration change needs user approval.
+- Read the relevant state at dispatch, transitions, reconciliation, context recovery, and when related state changes. Update stage, round, audit, and per-track fields when they actually change.
+- Freeze every parameter the user set: model, hardware, dtype, TP/DP/EP, ISL/OSL, batch, maximum length, and serving flags. Changes to frozen parameters or approved scope need explicit user approval. Repairs within an approved candidate, including its declared mechanism flags under `references/validation-defaults.md`, remain authorized.
 - Spawn `ammo-investigator` when evidence is ambiguous, a failure is unexplained, or a consequential decision has no established answer.
 - Talk to live teammates with `SendMessage`; plain text in the lead thread does not reach them. To retire a teammate, follow `references/shutdown-protocol.md`.
 - Never kill a process you do not own. Never use a GPU you have not reserved. `references/gpu-pool.md` is the only authority on GPU ownership.

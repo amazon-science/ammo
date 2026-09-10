@@ -200,7 +200,7 @@ RUN uv pip install --no-cache-dir -r requirements.eval_server.txt
 
 # Install Agents CLI globally
 # Placed here so bumping versions doesn't invalidate vLLM/requirements layers
-RUN npm install -g @anthropic-ai/claude-code@2.1.202 @openai/codex@0.144.1
+RUN npm install -g @anthropic-ai/claude-code@2.1.202 @openai/codex@0.153.4
 
 # ============================================================
 # SETUP LAYERS — dirs, users, config (rarely change)

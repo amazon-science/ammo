@@ -209,6 +209,15 @@ This script appends a `## Projection Accuracy` section to `rounds/{N}/tracks/{op
 
 Each table below lists what one agent writes, and when.
 
+### Codex context recovery
+
+| Writes to | When |
+|-----------|------|
+| `recovery/{root_thread_id}/{task_path_without_leading_slash}/context.md` | Only the assigned child updates its task note at dispatch, amendments, progress changes, and yielded commands. |
+
+This is a diagnostic artifact, with no gate authority. The parent supplies the exact path.
+`references/context-recovery.md` owns recovery behavior and the narrow write exception.
+
 ### Orchestrator
 | Writes to | When |
 |-----------|------|

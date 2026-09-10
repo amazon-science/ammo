@@ -28,25 +28,48 @@ cp -a "$AMMO_EXPORT/runtime-overlay/.codex/." "$PROJECT/.codex/"
 The example uses `rsync` only as an install-time copy tool; an equivalent copy
 that omits the packaging-only overlay from the skill destination is fine.
 
-Merge hook enablement into the Codex configuration used to start the consuming
-project; do not replace an existing configuration:
+## Runtime configuration
+
+Use Codex **0.153.4 or later**. The AMMO image and generated session home select `gpt-6-astra` with high reasoning effort.
+AMMO role TOMLs omit `model` and `model_provider`; they inherit the consuming root's selection and keep their role-specific reasoning effort.
+A standalone consumer must select a model available through its own provider. Preserve its credentials and provider settings.
+
+Merge these runtime settings into the configuration used to launch the project:
 
 ```toml
 [features]
+multi_agent = false
 hooks = true
+shell_tool = true
+unified_exec = true
+
+[features.context_management]
+experimental_mode = true
+
+[features.multi_agent_v2]
+enabled = true
+hide_spawn_agent_metadata = false
+tool_namespace = "agents"
+max_concurrent_threads_per_session = 17
+
+[agents]
+job_max_runtime_seconds = 7200
 ```
 
-That is the only configuration setting supplied by this package. It is
-non-secret. The fully intercepted shell path used by the active AMMO runtime is
-also required for complete `PreToolUse` and `PostToolUse` command-policy
-coverage; keep the consuming runtime's shell-tool configuration compatible with
-Codex hooks.
+Codex enables experimental context management only for eligible ChatGPT accounts/providers. Other authentication paths retain ordinary compaction.
+Do not force private token-budget settings or a context-window size. Both paths use the file recovery contract in `references/context-recovery.md`.
 
-Do not copy model/provider settings or credentials from another installation.
-The agent TOMLs intentionally omit `model` and `model_provider`, so every AMMO
-role inherits the model and provider selected by the consuming root session.
-Role-specific reasoning-effort and sandbox overrides remain part of the agent
-contract.
+Tracked `exec_command` launches and final completion run the Bash hooks. AMMO uses `tty=false`, empty `write_stdin` polling, and owned interruption.
+The non-TTY rule is a workflow instruction: the hook payload exposes the command, not the TTY setting.
+
+## Managed server installation
+
+The server image separately installs the complete `.codex` tree at `/opt/codex-managed-hooks` and `requirements.toml` at `/etc/codex/requirements.toml`.
+Managed requirements enable `unified_exec` and require managed hooks only. A project setting cannot override a conflicting managed requirement.
+Rebuild the image and verify those installed files as well as the project template and generated `CODEX_HOME/config.toml`.
+
+Project hooks alone do not provide the server's root-owned enforcement boundary. A standalone managed installation must use a trusted owner, the complete hook dependency tree, and its actual Python/interpreter paths.
+Start a fresh Codex root after changing the runtime. Keep active campaigns on their installed runtime until a separate migration is validated.
 
 ## Runtime manifest
 

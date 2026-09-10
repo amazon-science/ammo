@@ -13,7 +13,9 @@
     "{stage}": "[A-Za-z0-9_*-]+",
     "{date}": "[0-9A-Za-z:_.-]+",
     "{slot}": "[A-Za-z0-9_-]+",
-    "{timestamp}": "[0-9A-Za-z:_.-]+"
+    "{timestamp}": "[0-9A-Za-z:_.-]+",
+    "{root_thread_id}": "[A-Za-z0-9_-]+",
+    "{task_path_without_leading_slash}": "[a-z0-9_]+(?:/[a-z0-9_]+)*"
   },
   "_placeholders_comment": "Placeholder token -> regex fragment. A template segment holding no placeholder is matched literally. A trailing '/' makes the template a directory PREFIX (anything below it conforms); no trailing '/' makes it an exact file path. Consumers also accept every proper directory ancestor of a template, so a bare `rounds/3/sweeps` token is a directory reference, not drift.",
   "open_dirs": [
@@ -22,6 +24,14 @@
   ],
   "_open_dirs_comment": "Directories whose whole subtree conforms because the child filenames are agent-chosen, not a fixed set: the researcher adds mining evidence files, and the auditor writes per-cycle and per-track verdict filenames. The slots inside them stay enumerated below for their writer/gate/kind facts. Every other directory keeps its exact child set, so a track-root `validation_results_DRAFT.md` still warns.",
   "slots": {
+    "context_recovery_note": {
+      "path_template": "recovery/{root_thread_id}/{task_path_without_leading_slash}/context.md",
+      "writer": "assigned Codex child only",
+      "gate": null,
+      "is_gate_slot": false,
+      "kind": "diagnostic",
+      "notes": "Assignment and continuation pointers only. Live state, evidence, monitor offsets, and hook-issued audit activation remain authoritative."
+    },
     "state_json": {
       "path_template": "state.json",
       "writer": "orchestrator",

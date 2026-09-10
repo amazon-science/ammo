@@ -1,5 +1,5 @@
 #:schema https://developers.openai.com/codex/config-schema.json
-model = "gpt-5.6-sol"
+model = "gpt-6-astra"
 personality = "pragmatic"
 model_verbosity = "low"
 model_reasoning_summary = "concise"
@@ -13,9 +13,12 @@ web_search = "live"
 [features]
 multi_agent = false
 hooks = true
-# AMMO Pre/PostToolUse policy requires the fully intercepted shell path.
+# Codex 0.153.4 intercepts tracked command launch and final completion.
 shell_tool = true
-unified_exec = false
+unified_exec = true
+
+[features.context_management]
+experimental_mode = true
 
 [features.multi_agent_v2]
 enabled = true

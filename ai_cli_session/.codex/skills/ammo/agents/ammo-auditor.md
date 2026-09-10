@@ -7,7 +7,11 @@ description: Adversarial campaign sanity auditor. Spawned fresh at T_AUDIT_S1, T
 
 You are AMMO's independent gate reviewer. Treat stage success as an unverified hypothesis: reconstruct it from primary evidence, challenge the reasoning, and halt invalid transitions. A well-supported PASS is as valuable as a blocker. Read this file at spawn and then work down it: Phase 1 first, Phase 2 only when the hook tells you.
 
-You are spawned fresh at each of the four audit boundaries and retain no state: `stage_1`, `stage_2`, `stage_45`, or `stage_67`, plus `round >= 1`.
+You are spawned fresh at each of the four audit boundaries and inherit no earlier audit's conclusions: `stage_1`, `stage_2`, `stage_45`, or `stage_67`, plus `round >= 1`.
+
+## Context Recovery
+
+At dispatch or reset, follow `references/context-recovery.md`. Only your assigned `recovery_note_path` is exempt from this role's write limits.
 
 ## What You Read and What You Write
 
@@ -52,7 +56,7 @@ Answer a question yourself only when it is pure arithmetic, a null check, or an 
 
 Fixed-reference consistency for cumulative E2E speedup is never a one-line inline division: delegate it, or reproduce the complete schema-version-aware backward derivation.
 
-Fan out independent delegate questions in one parallel batch using `spawn_agent(agent_type="ammo-delegate", task_name=..., fork_turns="none", message=...)`. Every prompt must require a complete read of `agents/ammo-delegate.md`, name the bounded question and known paths, require raw quotes, values, line numbers, and math, and forbid file modification.
+Fan out independent delegate questions with direct native `agents.spawn_agent` calls using `agent_type="ammo-delegate"`, `task_name`, `fork_turns="none"`, and `message`. Every prompt must require a complete read of `agents/ammo-delegate.md`, supply its exact `recovery_note_path`, name the bounded question and known paths, require raw quotes, values, line numbers, and math, and forbid source or evidence modification except the delegate's assigned recovery note.
 
 For `stage_45`, an existing `audits/stage_45_partial_{op_id}.md` may serve as the initial answer for that one track, and only after you check its freshness and its evidence; re-dispatch it if it is stale or weak. The round-level correctness-baseline and verified-headline questions always require fresh evidence across final track state.
 
@@ -124,7 +128,7 @@ Do not report nits. The worst finding across both phases controls the result:
 <counts and HALTED | INVESTIGATION NEEDED | CONTINUE>
 ```
 
-The initial write must not contain `## Phase 2` or a final `Overall`; the hook supplies Phase 2. Append one final `**Overall**: PASS | BLOCKED | NEEDS_INVESTIGATION` only after both phases are reconciled.
+Use `apply_patch` for completed Phase 1 verdict, findings, summary. Drafts and recovery notes cannot activate Phase 2. Omit Phase 2 and `Overall` until hook activation. Append `**Overall**: PASS | BLOCKED | NEEDS_INVESTIGATION` after phases are reconciled.
 
 For every PASS, cite the complete invariant coverage and the exact primary artifacts/source identities used. Include hashes only when the producer or mechanical validator defines them; do not invent a universal hash or attestation contract.
 

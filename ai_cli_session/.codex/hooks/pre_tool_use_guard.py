@@ -5,6 +5,7 @@ import glob,os,re,stat
 import shlex
 import sys
 from pathlib import Path
+from common import CampaignResolutionError
 from common import active_artifact_dir,additional_context,block_pretool,blocking_monitor_records,command_from_payload,command_invokes_gpu_heavy_tool,command_invokes_vllm_bench_latency,find_repo_root,format_monitor_records,is_ammo_context,is_static_inspection_command,load_json,pending_monitor_pairs,read_stdin_json,record_session_id,session_id_from_payload,spawn_role_and_name,state_session_id,task_names_equivalent
 
 # Always-on session provisioning guard. Install classification is the shared
@@ -37,6 +38,12 @@ except Exception as _installs_exc:
     def _command_installs(command,depth=0): return False
 
 p=read_stdin_json(); cmd=command_from_payload(p); repo=find_repo_root(p.get('cwd'))
+try:
+    active_artifact_dir(repo, p)
+except CampaignResolutionError as exc:
+    if not is_static_inspection_command(cmd):
+        block_pretool(f'AMMO campaign binding must be resolved before mutation: {exc}')
+    raise SystemExit(0)
 def _guard_package_installs():
     if not cmd or os.environ.get('AMMO_ALLOW_PIP') == '1':
         return

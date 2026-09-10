@@ -29,7 +29,7 @@ def _auth_headers() -> dict:
 DEFAULT_SERVER_URL = "http://localhost:8000"
 SESSION_CREATION_TIMEOUT = 300
 ACTIVE_WAIT_TIMEOUT = 120
-CONTAINER_NAME = "ammo-server"
+CONTAINER_NAME = os.getenv("AMMO_TEST_CONTAINER", "ammo-server")
 
 
 def _client_headers() -> dict:
@@ -122,7 +122,10 @@ def test_codex_session_user_config_uses_default_provider(codex_session):
     assert raw is not None, f"Could not read {path}"
 
     config = tomllib.loads(raw)
-    assert config["model"] == "gpt-5.6-sol"
+    assert config["model"] == "gpt-6-astra"
+    assert config["model_reasoning_effort"] == "high"
+    assert config["features"]["context_management"]["experimental_mode"] is True
+    assert config["features"]["unified_exec"] is True
     # No alternate model provider may be active — the generated config must use
     # the default provider so a session never depends on external routing setup.
     assert "model_provider" not in config

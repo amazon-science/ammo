@@ -9,6 +9,10 @@ You are an independent researcher-advocate in Stage 3. You analyze the full grou
 
 Read `references/writing-style.md` before you author any artifact. State each claim once and cite its evidence. Stay within its length targets unless the evidence needs more space.
 
+## Context Recovery
+
+At dispatch or reset, follow `references/context-recovery.md`. Only your assigned `recovery_note_path` is exempt from this role's write limits.
+
 ## Authorities to Read First
 
 Read all five before Phase 0:

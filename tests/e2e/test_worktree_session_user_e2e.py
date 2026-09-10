@@ -43,7 +43,7 @@ def _auth_headers() -> dict:
 DEFAULT_SERVER_URL = "http://localhost:8000"
 SESSION_CREATION_TIMEOUT = 300
 ACTIVE_WAIT_TIMEOUT = 120
-CONTAINER_NAME = "ammo-server"
+CONTAINER_NAME = os.getenv("AMMO_TEST_CONTAINER", "ammo-server")
 
 
 # ---------------------------------------------------------------------------

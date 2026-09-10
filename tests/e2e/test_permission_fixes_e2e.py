@@ -40,7 +40,7 @@ def _auth_headers() -> dict:
 DEFAULT_SERVER_URL = "http://localhost:8000"
 SESSION_CREATION_TIMEOUT = 300  # seconds (editable_install can take 200s+ under load)
 ACTIVE_WAIT_TIMEOUT = 120  # seconds to wait for session to become active
-CONTAINER_NAME = "ammo-server"
+CONTAINER_NAME = os.getenv("AMMO_TEST_CONTAINER", "ammo-server")
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ class TestPermissionFixes:
     """Verify git worktree permissions and tmux config are correctly deployed."""
 
     def test_git_worktrees_dir_writable_by_session_user(self, shared_session):
-        """The .git/worktrees/ dir must be owned by session_user with sticky bit."""
+        """Git metadata must be owned and writable by the session user."""
         session_id, headers = shared_session
 
         result = _exec_in_container(
@@ -194,8 +194,7 @@ class TestPermissionFixes:
         )
 
         output = result.stdout.strip()
-        # Expect something like "session_user:session_user 1777"
-        # or "1000:1000 1777" if name resolution isn't available
+        # Git runs as session_user and creates ordinary owner-writable directories.
         parts = output.split()
         assert len(parts) == 2, f"Unexpected stat output format: {output}"
 
@@ -207,10 +206,7 @@ class TestPermissionFixes:
             f"Expected owner session_user:session_user or 1000:1000, got: {owner}"
         )
 
-        # Check mode includes sticky bit (1777) or at least world-writable with sticky
-        assert mode.startswith("1") and mode.endswith("777"), (
-            f"Expected mode 1777 (sticky + world-writable), got: {mode}"
-        )
+        assert int(mode, 8) & 0o700 == 0o700, f"Owner must have rwx access, got mode {mode}"
 
     def test_session_user_can_write_to_git_worktrees(self, shared_session):
         """session_user must be able to create and remove files in .git/worktrees/."""
@@ -228,13 +224,14 @@ class TestPermissionFixes:
             f"Expected 'OK' in output, got: {result.stdout}"
         )
 
-    def test_session_user_can_write_to_base_repo_claude_worktrees(self, shared_session):
-        """session_user must be able to write to .claude/worktrees/ (flock location)."""
+    def test_session_user_can_write_to_session_claude_worktrees(self, shared_session):
+        """The agent hook locks in its session worktree; the server owns the base lock."""
         session_id, headers = shared_session
 
+        lock_dir = f"/data/sessions/{session_id}/worktree/.claude/worktrees"
         result = _exec_as_session_user(
-            "touch /data/repos/vllm/.claude/worktrees/.e2e_lock_test "
-            "&& rm /data/repos/vllm/.claude/worktrees/.e2e_lock_test "
+            f"mkdir -p {lock_dir} && touch {lock_dir}/.e2e_lock_test "
+            f"&& rm {lock_dir}/.e2e_lock_test "
             "&& echo OK"
         )
         assert result.returncode == 0, (
@@ -293,7 +290,7 @@ class TestPermissionFixes:
         required_settings = [
             "remain-on-exit off",
             "exit-empty on",
-            "destroy-unattached on",
+            "destroy-unattached off",
         ]
         for setting in required_settings:
             assert setting in content, (

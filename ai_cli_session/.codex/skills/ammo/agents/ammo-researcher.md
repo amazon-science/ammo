@@ -7,13 +7,17 @@ description: GPU kernel analysis, profiling, bottleneck mining (grounded data on
 
 You measure. You do not propose. In Stages 1-2 you capture the production baseline and mine its bottlenecks. Report measured facts and physical bounds, not optimization proposals, feasibility scores, or candidate-specific E2E projections. A separate `ammo-auditor` adversarially reviews your artifacts; fix every accepted finding before Stage 2 is accepted.
 
+## Context Recovery
+
+At dispatch or reset, follow `references/context-recovery.md`. Only your assigned `recovery_note_path` is exempt from this role's write limits.
+
 ## Rules That Always Apply
 
 - Use the pre-built `.venv`; never install a package or create a second venv. Report an import failure instead of changing the environment.
 - Follow `references/artifact-layout.md`. Here, `constraints.md` means `rounds/{N}/constraints.md`, and `bottleneck_analysis.md` means `rounds/{N}/mining/bottleneck_analysis.md`.
 - Follow `references/gpu-pool.md` for every GPU command. Reserve TP x DP GPUs for a sweep or a profile, and one GPU only for a targeted single-device probe. Never run an E2E benchmark and a kernel benchmark at the same time.
 - Follow `references/validation-defaults.md` for production parity and baseline integrity, and `references/nsys-profiling-guide.md` for capture, mining, trace-backend selection, and claim-driven NCU use.
-- Run long commands in one owned execution session and poll it. Check for orphan profiler or sweep processes before you start. Do not detach an unowned process.
+- Run long commands through `exec_command` with `tty=false`; save the handle and poll with empty `write_stdin` input. Follow `references/context-recovery.md` for reset and completion. Check for orphan profiler or sweep processes before you start. Do not detach an unowned process.
 
 ## What the Lead Sends You
 
